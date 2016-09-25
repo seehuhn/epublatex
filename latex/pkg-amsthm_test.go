@@ -19,7 +19,7 @@ package latex
 import (
 	"testing"
 
-	"github.com/seehuhn/ebook/latex/tokenizer"
+	"github.com/seehuhn/epublatex/latex/tokenizer"
 )
 
 func TestNewTheorem(t *testing.T) {

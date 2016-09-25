@@ -21,8 +21,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/seehuhn/ebook/latex/math"
-	"github.com/seehuhn/ebook/latex/tokenizer"
+	"github.com/seehuhn/epublatex/latex/math"
+	"github.com/seehuhn/epublatex/latex/tokenizer"
 )
 
 // Pass1 renders all formulas as images and extracts the cross-references.

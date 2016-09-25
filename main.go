@@ -21,8 +21,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/seehuhn/ebook/epub"
-	"github.com/seehuhn/ebook/latex"
+	"github.com/seehuhn/epublatex/epub"
+	"github.com/seehuhn/epublatex/latex"
 )
 
 func main() {
@@ -33,7 +33,9 @@ func main() {
 	}
 	inputName := flag.Arg(0)
 
-	out, err := os.Create("test.epub")
+	outFile := "test.epub"
+	log.Println("writing", outFile)
+	out, err := os.Create(outFile)
 	if err != nil {
 		log.Fatal(err)
 	}

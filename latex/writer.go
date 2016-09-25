@@ -22,7 +22,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/seehuhn/ebook/epub"
+	"github.com/seehuhn/epublatex/epub"
 )
 
 const outputLineWidth = 79

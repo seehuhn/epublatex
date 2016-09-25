@@ -21,8 +21,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/seehuhn/ebook/epub"
-	"github.com/seehuhn/ebook/latex/math"
+	"github.com/seehuhn/epublatex/epub"
+	"github.com/seehuhn/epublatex/latex/math"
 )
 
 type converter struct {

@@ -21,7 +21,7 @@ import (
 	"log"
 	"strconv"
 
-	"github.com/seehuhn/ebook/latex/tokenizer"
+	"github.com/seehuhn/epublatex/latex/tokenizer"
 )
 
 var pkgInit = map[string]func(conv *converter, options string){

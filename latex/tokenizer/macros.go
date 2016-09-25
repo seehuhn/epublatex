@@ -23,7 +23,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/seehuhn/ebook/latex/scanner"
+	"github.com/seehuhn/epublatex/latex/scanner"
 )
 
 var pkgInit = map[string]func(p *Tokenizer){

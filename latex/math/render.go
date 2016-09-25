@@ -32,7 +32,7 @@ import (
 	"strconv"
 	"text/template"
 
-	"github.com/seehuhn/ebook/epub"
+	"github.com/seehuhn/epublatex/epub"
 	"golang.org/x/crypto/sha3"
 )
 

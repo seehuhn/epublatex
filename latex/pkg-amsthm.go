@@ -16,7 +16,7 @@
 
 package latex
 
-import "github.com/seehuhn/ebook/latex/tokenizer"
+import "github.com/seehuhn/epublatex/latex/tokenizer"
 
 func addAmsthmMacros(conv *converter, options string) {
 	conv.PkgState["amsthm@style"] = "plain"

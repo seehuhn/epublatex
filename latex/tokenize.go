@@ -21,7 +21,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/seehuhn/ebook/latex/tokenizer"
+	"github.com/seehuhn/epublatex/latex/tokenizer"
 )
 
 func (conv *converter) Tokenize(inputFileName string) error {

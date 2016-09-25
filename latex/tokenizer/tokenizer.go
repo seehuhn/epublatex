@@ -20,7 +20,7 @@ import (
 	"bytes"
 	"log"
 
-	"github.com/seehuhn/ebook/latex/scanner"
+	"github.com/seehuhn/epublatex/latex/scanner"
 )
 
 // A Tokenizer can be used to split a LaTeX file into syntactic units.
