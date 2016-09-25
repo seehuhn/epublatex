@@ -1,0 +1,11 @@
+{{define "title" -}}
+<title>Cover</title>
+{{end -}}
+
+{{define "body-attributes"}} id="cover" epub:type="cover"{{end -}}
+
+{{define "contents" -}}
+<img id="cover-image" alt="{{html .Book.Title}}" src="{{html .This.CoverImage}}"/>
+{{end -}}
+
+{{template "xhtml" . -}}

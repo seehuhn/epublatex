@@ -1,0 +1,8 @@
+TODO
+====
+
+* Use a TeX comment to set the document ID?
+* add an HTML output mode
+* automatically prune the math rendering cache from time to time
+
+* use some prefix ("epub-"?) for all auto-generated CSS?

@@ -1,0 +1,12 @@
+{{define "title" -}}
+<title>{{.Book.Title}}</title>
+{{end -}}
+
+{{define "body-attributes"}} id="titlepage" epub:type="frontmatter titlepage"{{end -}}
+
+{{define "contents" -}}
+<h1>{{html .Book.Title}}</h1>
+{{with .Book.Authors}}<p>by {{formatlist . | html}}</p>
+{{end}}{{end -}}
+
+{{template "xhtml" . -}}

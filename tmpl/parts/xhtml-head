@@ -1,0 +1,9 @@
+{{template "xml" . -}}
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"{{- block "xhtml-lang" .}}{{end}}>
+<head>
+{{block "title" .}}{{end -}}
+<meta charset="utf-8"/>
+{{block "stylesheets" .}}{{end -}}
+</head>
+<body{{block "body-attributes" . }}{{end}}>

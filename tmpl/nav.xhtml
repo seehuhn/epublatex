@@ -1,0 +1,17 @@
+{{define "title" -}}
+<title>EPUB 3 Navigation Document</title>
+{{end -}}
+
+{{define "contents" -}}
+<h1>Table of Contents</h1>
+<nav epub:type="toc">{{range $x := .Book.Nav -}}
+{{range $x.Up}}
+<ol>
+<li>{{else}}</li><li>{{end -}}
+<a href="{{$x.Path}}#{{$x.ID}}">{{$x.Title}}</a>{{range $x.Down}}</li>
+</ol>
+{{end}}{{end -}}
+</nav>
+{{end -}}
+
+{{template "xhtml" . -}}

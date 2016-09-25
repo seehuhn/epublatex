@@ -1,0 +1,3 @@
+{{template "xhtml-head" . -}}
+{{block "contents" .}}{{end -}}
+{{template "xhtml-tail" . -}}

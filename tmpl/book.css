@@ -1,0 +1,53 @@
+@namespace epub "http://www.idpf.org/2007/ops";
+
+body {
+    margin: 1in auto;
+    max-width: 32em;
+    text-align: justify;
+    -webkit-hyphens: auto;
+    -ms-hyphens: auto;
+    hyphens: auto;
+}
+h1, h2, h3, h4, h5, h6 {
+    text-align: left;
+}
+
+#cover-image {
+    margin: 0;
+    border: none;
+    padding: 0;
+    max-width: 100%;
+}
+
+.epub-secno {
+    margin-right: 1em;
+}
+
+.error {
+    text-decoration: line-through;
+}
+
+.imath {
+    display: inline-block;
+    margin: 0;
+    padding: 0;
+    vertical-align: middle;
+    height: auto;
+}
+.dmath {
+    display: block;
+    margin: 1ex auto;
+    padding: 0;
+    height: auto;
+}
+
+.latex-nw {
+    white-space: nowrap;
+}
+.latex-block {
+    margin: 1ex 0;
+}
+.latex-eqno {
+    float: right;
+    padding-top: 1.5ex;
+}

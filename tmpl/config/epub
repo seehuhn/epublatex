@@ -1,0 +1,3 @@
+{{define "xhtml-lang"}}{{with .Book.Language}} xml:lang="{{.}}" lang="{{.}}"{{end}}{{end -}}
+{{define "stylesheets"}}<link rel="stylesheet" type="text/css" href="{{.Book.CSSPath}}"/>
+{{end -}}
