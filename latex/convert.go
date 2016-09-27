@@ -32,7 +32,7 @@ type converter struct {
 	WorkDir       string
 	TokenFileName string
 
-	Images *math.Images
+	Images math.Images
 	Labels []*xRef
 
 	Section  epub.SecNo

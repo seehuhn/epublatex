@@ -38,7 +38,7 @@ func (conv *converter) convertHTML(tokens tokenizer.TokenList) string {
 		case token.Type == tokenizer.TokenOther && token.Name == "$" && inMath:
 			inMath = false
 			body := mathTokens.FormatMaths()
-			res = append(res, conv.Images.GetInline(body))
+			res = append(res, conv.Images.Get("$", body))
 			mathTokens = nil
 		case inMath:
 			mathTokens = append(mathTokens, token)
@@ -135,9 +135,9 @@ func (conv *converter) Pass2() (err error) {
 				body := mathTokens.FormatMaths()
 				var extra, img string
 				if mathMode == 1 {
-					img = conv.Images.GetInline(body)
+					img = conv.Images.Get("$", body)
 				} else {
-					img = conv.Images.GetDisplayed(body)
+					img = conv.Images.Get("equation*", body)
 					if mathLabel != "" {
 						var id, name string
 						for _, label := range conv.Labels {

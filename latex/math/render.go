@@ -29,7 +29,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
+	"strings"
 	"text/template"
 
 	"github.com/seehuhn/epublatex/epub"
@@ -49,19 +51,17 @@ const (
 )
 
 type Renderer struct {
-	book      *epub.Writer
-	preamble  []string
-	inline    map[string]bool
-	displayed map[string]bool
+	book     *epub.Writer
+	preamble []string
+	formulas map[string]int
 
 	cacheDir string
 }
 
 func NewRenderer(book *epub.Writer) (*Renderer, error) {
 	r := &Renderer{
-		book:      book,
-		inline:    make(map[string]bool),
-		displayed: make(map[string]bool),
+		book:     book,
+		formulas: make(map[string]int),
 	}
 
 	cacheDir := *cacheDir
@@ -82,50 +82,132 @@ func NewRenderer(book *epub.Writer) (*Renderer, error) {
 	return r, nil
 }
 
-func (r *Renderer) cacheFileName(class, formula string) string {
-	h := sha3.NewShake128()
-	h.Write([]byte(class + ":" + strconv.Itoa(renderRes) + ":" + formula))
-	buf := make([]byte, 16)
-	h.Read(buf)
-	fileName := hex.EncodeToString(buf) + ".png"
-	return filepath.Join(r.cacheDir, fileName)
-}
-
-func (r *Renderer) isCached(class, formula string) bool {
-	if *debugDir != "" {
-		return false
-	}
-	filePath := r.cacheFileName(class, formula)
-	_, err := os.Stat(filePath)
-	return err == nil
-}
-
-func (r *Renderer) writeCached(class, formula string, img image.Image) error {
-	filePath := r.cacheFileName(class, formula)
-	fd, err := os.Create(filePath)
-	if err != nil {
-		return err
-	}
-	defer fd.Close()
-
-	return png.Encode(fd, img)
-}
-
-func (r *Renderer) loadCached(class, formula string) (image.Image, error) {
-	filePath := r.cacheFileName(class, formula)
-	return readImage(filePath)
-}
-
 func (r *Renderer) AddPreamble(line string) {
 	r.preamble = append(r.preamble, line)
 }
 
-func (r *Renderer) AddInline(formula string) {
-	r.inline[formula] = true
+func (r *Renderer) AddFormula(env, formula string) {
+	if strings.Contains(env, "%") {
+		panic("invalid math environment " + env)
+	}
+	key := env + "%" + formula
+	r.formulas[key]++
 }
 
-func (r *Renderer) AddDisplayed(formula string) {
-	r.displayed[formula] = true
+func (r *Renderer) Finish() (res Images, err error) {
+	res = make(Images)
+	if len(r.formulas) == 0 {
+		return res, nil
+	}
+
+	all := r.getFormulaInfo()
+
+	var workDir string
+	needed := 0
+	for _, info := range all {
+		if info.Needed {
+			needed++
+		}
+	}
+	if needed > 0 {
+		if *debugDir == "" {
+			workDir, err = ioutil.TempDir("", "epub")
+			if err != nil {
+				return nil, err
+			}
+			defer func() {
+				e2 := os.RemoveAll(workDir)
+				if err == nil {
+					err = e2
+				}
+			}()
+		} else {
+			workDir, err = filepath.Abs(*debugDir)
+			if err != nil {
+				return nil, err
+			}
+			log.Println("leaving math rendering debugging information in",
+				workDir)
+			err = os.MkdirAll(workDir, 0777)
+			if err != nil {
+				return nil, err
+			}
+		}
+		oldDir, err := os.Getwd()
+		if err != nil {
+			return nil, err
+		}
+		err = os.Chdir(workDir)
+		if err != nil {
+			return nil, err
+		}
+		defer func() {
+			e2 := os.Chdir(oldDir)
+			if err == nil {
+				err = e2
+			}
+		}()
+
+		texFileName := filepath.Join(workDir, "all.tex")
+		err = r.writeTexFile(texFileName, all)
+		if err != nil {
+			return nil, err
+		}
+
+		ltx := exec.Command("pdflatex", "-interaction=nonstopmode", texFileName)
+		output, err := ltx.Output()
+		if err != nil {
+			if e2, ok := err.(*exec.ExitError); ok {
+				log.Println("Rendering formulas using LaTeX failed:", e2)
+				log.Println("--- begin LaTeX output ---")
+				log.Println(string(output))
+				log.Println("--- end LaTeX output ---")
+			}
+			return nil, err
+		}
+
+		pdfFileName := filepath.Join(workDir, "all.pdf")
+		resolution := strconv.Itoa(renderRes)
+		gs := exec.Command("gs", "-dSAFER", "-dBATCH", "-dNOPAUSE", "-r"+resolution,
+			"-sDEVICE=pngalpha", "-dTextAlphaBits=4", "-sOutputFile="+imgNames,
+			pdfFileName)
+		output, err = gs.Output()
+		if err != nil {
+			if e2, ok := err.(*exec.ExitError); ok {
+				log.Println("Converting formulas to .png using gs failed:", e2)
+				log.Println("--- begin gs output ---")
+				log.Println(string(output))
+				log.Println("--- end gs output ---")
+			}
+			return nil, err
+		}
+	}
+	err = r.gatherImages(res, all, workDir)
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}
+
+func (r *Renderer) getFormulaInfo() []*formulaInfo {
+	var all []*formulaInfo
+	for key, count := range r.formulas {
+		parts := strings.SplitN(key, "%", 2)
+		info := &formulaInfo{
+			Key:     key,
+			Env:     parts[0],
+			Formula: parts[1],
+			Count:   count,
+			Needed:  !r.isCached(key),
+		}
+		all = append(all, info)
+	}
+	sort.Sort(decreasingCount(all))
+	for i, info := range all {
+		info.FileName = strconv.Itoa(i)
+	}
+	return all
 }
 
 const texTemplate = `\documentclass{minimal}
@@ -143,20 +225,25 @@ const texTemplate = `\documentclass{minimal}
 
 \begin{document}
 \fontsize{10}{12}\selectfont
-{{range .Inline}}
-\vrule width6bp height4.3pt depth0pt \kern6bp ${{.}}$
+
+{{range .Formulas -}}
+{{if .Needed -}}
+{{if eq .Env "$" -}}
+\vrule width6bp height4.3pt depth0pt \kern6bp
+${{.Formula}}$
+{{else -}}
+\begin{ {{- .Env -}} }
+  {{.Formula}}
+\end{ {{- .Env -}} }
+{{end -}}
 \newpage
-{{end}}
-{{range .Displayed}}
-\begin{equation*}
-  {{.}}
-\end{equation*}
-\newpage
-{{end}}
+
+{{end -}}
+{{end -}}
 \end{document}
 `
 
-func (r *Renderer) writeTexFile(name string, inline, displayed []string) (err error) {
+func (r *Renderer) writeTexFile(name string, all []*formulaInfo) (err error) {
 	texFile, err := os.Create(name)
 	if err != nil {
 		return err
@@ -172,11 +259,66 @@ func (r *Renderer) writeTexFile(name string, inline, displayed []string) (err er
 	if err != nil {
 		return err
 	}
-	return tmpl.Execute(texFile, map[string][]string{
-		"Preamble":  r.preamble,
-		"Inline":    inline,
-		"Displayed": displayed,
+	return tmpl.Execute(texFile, map[string]interface{}{
+		"Preamble": r.preamble,
+		"Formulas": all,
 	})
+}
+
+func (r *Renderer) gatherImages(
+	res map[string]string, all []*formulaInfo, workDir string) error {
+	texIdx := 0
+	for _, info := range all {
+		var crop func(imgIn image.Image) image.Image
+		var cssClass string
+		if info.Env == "$" {
+			crop = cropInline
+			cssClass = "imath"
+		} else {
+			crop = cropDisplayed
+			cssClass = "dmath"
+		}
+
+		var img image.Image
+		var err error
+		if info.Needed {
+			texIdx++
+			imageFileName := filepath.Join(workDir,
+				fmt.Sprintf(imgNames, texIdx))
+			img, err = readImage(imageFileName)
+			if err != nil {
+				return err
+			}
+			img = crop(img)
+			err = r.writeCached(info.Key, img)
+			if err != nil {
+				return err
+			}
+		} else {
+			img, err = r.loadCached(info.Key)
+			if err != nil {
+				return err
+			}
+		}
+
+		file := r.book.RegisterFile("m/"+info.FileName, "image/png", false)
+		w, err := r.book.CreateFile(file)
+		if err != nil {
+			return err
+		}
+		err = png.Encode(w, img)
+		if err != nil {
+			return err
+		}
+
+		exWidth := float64(img.Bounds().Dx()) / float64(renderRes) * 72.27 / xHeight
+		s := fmt.Sprintf(
+			`<img alt="%s" src="%s" class="%s" style="width: %.2fex"/>`,
+			html.EscapeString(info.Formula), html.EscapeString(file.Path),
+			cssClass, exWidth)
+		res[info.Key] = s
+	}
+	return nil
 }
 
 func readImage(fname string) (image.Image, error) {
@@ -320,197 +462,58 @@ leftRightLoop:
 	return imgOut.SubImage(crop)
 }
 
-func (r *Renderer) registerResults(baseIdx int, list []string,
-	cssClass string, crop func(image.Image) image.Image,
-	res map[string]string, workDir string) error {
-	for i, formula := range list {
-		k := i + baseIdx
-		imageFileName := filepath.Join(workDir, fmt.Sprintf(imgNames, k))
-		img, err := readImage(imageFileName)
-		if err != nil {
-			return err
-		}
-		img = crop(img)
-		err = r.writeCached(cssClass, formula, img)
-		if err != nil {
-			return err
-		}
-
-		name := strconv.Itoa(k)
-		file := r.book.RegisterFile("m/"+name, "image/png", false)
-		w, err := r.book.CreateFile(file)
-		if err != nil {
-			return err
-		}
-		err = png.Encode(w, img)
-		if err != nil {
-			return err
-		}
-
-		exWidth := float64(img.Bounds().Dx()) / float64(renderRes) * 72.27 / xHeight
-		s := fmt.Sprintf(
-			`<img alt="%s" src="%s" class="%s" style="width: %.2fex"/>`,
-			html.EscapeString(formula), html.EscapeString(file.Path),
-			cssClass, exWidth)
-		res[formula] = s
-	}
-	return nil
+func (r *Renderer) cacheFileName(key string) string {
+	h := sha3.NewShake128()
+	h.Write([]byte(strconv.Itoa(renderRes) + "%" + key))
+	buf := make([]byte, 16)
+	h.Read(buf)
+	fileName := hex.EncodeToString(buf) + ".png"
+	return filepath.Join(r.cacheDir, fileName)
 }
 
-func (r *Renderer) registerCached(baseIdx int, list []string,
-	cssClass string, res map[string]string) error {
-	for i, formula := range list {
-		k := i + baseIdx
-		img, err := r.loadCached(cssClass, formula)
-		if err != nil {
-			return err
-		}
-
-		name := strconv.Itoa(k)
-		file := r.book.RegisterFile("m/"+name, "image/png", false)
-		w, err := r.book.CreateFile(file)
-		if err != nil {
-			return err
-		}
-		err = png.Encode(w, img)
-		if err != nil {
-			return err
-		}
-
-		exWidth := float64(img.Bounds().Dx()) / float64(renderRes) * 72.27 / xHeight
-		s := fmt.Sprintf(
-			`<img alt="%s" src="%s" class="%s" style="width: %.2fex"/>`,
-			html.EscapeString(formula), html.EscapeString(file.Path),
-			cssClass, exWidth)
-		res[formula] = s
+func (r *Renderer) isCached(key string) bool {
+	if *debugDir != "" {
+		return false
 	}
-	return nil
+	_, err := os.Stat(r.cacheFileName(key))
+	return err == nil
 }
 
-func (r *Renderer) Finish() (res *Images, err error) {
-	res = &Images{
-		inline:    make(map[string]string),
-		displayed: make(map[string]string),
-	}
-	if len(r.inline) == 0 && len(r.displayed) == 0 {
-		return res, nil
-	}
-
-	var inline []string
-	var inlineCached []string
-	for formula := range r.inline {
-		if r.isCached("imath", formula) {
-			inlineCached = append(inlineCached, formula)
-		} else {
-			inline = append(inline, formula)
-		}
-	}
-	var displayed []string
-	var displayedCached []string
-	for formula := range r.displayed {
-		if r.isCached("dmath", formula) {
-			displayedCached = append(displayedCached, formula)
-		} else {
-			displayed = append(displayed, formula)
-		}
-	}
-
-	if len(inline)+len(displayed) > 0 {
-		var workDir string
-		if *debugDir == "" {
-			workDir, err = ioutil.TempDir("", "epub")
-			if err != nil {
-				return nil, err
-			}
-			defer func() {
-				e2 := os.RemoveAll(workDir)
-				if err == nil {
-					err = e2
-				}
-			}()
-		} else {
-			workDir, err = filepath.Abs(*debugDir)
-			if err != nil {
-				return nil, err
-			}
-			log.Println("leaving math rendering debugging information in",
-				workDir)
-			err = os.MkdirAll(workDir, 0777)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		oldDir, err := os.Getwd()
-		if err != nil {
-			return nil, err
-		}
-		err = os.Chdir(workDir)
-		if err != nil {
-			return nil, err
-		}
-		defer func() {
-			e2 := os.Chdir(oldDir)
-			if err == nil {
-				err = e2
-			}
-		}()
-
-		texFileName := filepath.Join(workDir, "all.tex")
-		err = r.writeTexFile(texFileName, inline, displayed)
-		if err != nil {
-			return nil, err
-		}
-
-		ltx := exec.Command("pdflatex", "-interaction=nonstopmode", texFileName)
-		output, err := ltx.Output()
-		if err != nil {
-			if e2, ok := err.(*exec.ExitError); ok {
-				log.Println("Rendering formulas using LaTeX failed:", e2)
-				log.Println("--- begin LaTeX output ---")
-				log.Println(string(output))
-				log.Println("--- end LaTeX output ---")
-			}
-			return nil, err
-		}
-
-		pdfFileName := filepath.Join(workDir, "all.pdf")
-		resolution := strconv.Itoa(renderRes)
-		gs := exec.Command("gs", "-dSAFER", "-dBATCH", "-dNOPAUSE", "-r"+resolution,
-			"-sDEVICE=pngalpha", "-dTextAlphaBits=4", "-sOutputFile="+imgNames,
-			pdfFileName)
-		output, err = gs.Output()
-		if err != nil {
-			if e2, ok := err.(*exec.ExitError); ok {
-				log.Println("Converting formulas to .png using gs failed:", e2)
-				log.Println("--- begin gs output ---")
-				log.Println(string(output))
-				log.Println("--- end gs output ---")
-			}
-			return nil, err
-		}
-
-		err = r.registerResults(1, inline, "imath", cropInline,
-			res.inline, workDir)
-		if err != nil {
-			return nil, err
-		}
-		err = r.registerResults(1+len(inline), displayed, "dmath", cropDisplayed,
-			res.displayed, workDir)
-		if err != nil {
-			return nil, err
-		}
-	}
-	err = r.registerCached(1+len(inline)+len(displayed), inlineCached, "imath",
-		res.inline)
+func (r *Renderer) writeCached(key string, img image.Image) error {
+	fd, err := os.Create(r.cacheFileName(key))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	err = r.registerCached(1+len(inline)+len(displayed)+len(inlineCached),
-		displayedCached, "dmath", res.displayed)
-	if err != nil {
-		return nil, err
-	}
+	defer fd.Close()
 
-	return res, nil
+	return png.Encode(fd, img)
+}
+
+func (r *Renderer) loadCached(key string) (image.Image, error) {
+	return readImage(r.cacheFileName(key))
+}
+
+type formulaInfo struct {
+	Key string
+
+	Env     string
+	Formula string
+	Count   int
+
+	Needed   bool
+	FileName string
+}
+
+type decreasingCount []*formulaInfo
+
+func (dc decreasingCount) Len() int      { return len(dc) }
+func (dc decreasingCount) Swap(i, j int) { dc[i], dc[j] = dc[j], dc[i] }
+func (dc decreasingCount) Less(i, j int) bool {
+	if dc[i].Count != dc[j].Count {
+		return dc[i].Count > dc[j].Count
+	}
+	if dc[i].Formula != dc[j].Formula {
+		return dc[i].Formula < dc[j].Formula
+	}
+	return dc[i].Env < dc[j].Env
 }

@@ -18,21 +18,11 @@ package math
 
 import "log"
 
-type Images struct {
-	inline    map[string]string
-	displayed map[string]string
-}
+type Images map[string]string
 
-func (m *Images) GetInline(formula string) string {
-	res, ok := m.inline[formula]
-	if !ok {
-		log.Printf("missing maths %q", formula)
-	}
-	return res
-}
-
-func (m *Images) GetDisplayed(formula string) string {
-	res, ok := m.displayed[formula]
+func (m Images) Get(env, formula string) string {
+	key := env + "%" + formula
+	res, ok := m[key]
 	if !ok {
 		log.Printf("missing maths %q", formula)
 	}

@@ -94,9 +94,9 @@ func (conv *converter) Pass1() error {
 			if eom {
 				body := mathTokens.FormatMaths()
 				if mathMode == 1 {
-					renderer.AddInline(body)
+					renderer.AddFormula("$", body)
 				} else {
-					renderer.AddDisplayed(body)
+					renderer.AddFormula("equation*", body)
 				}
 				mathMode = 0
 				mathTokens = nil
