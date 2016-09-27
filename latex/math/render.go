@@ -36,14 +36,17 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
+var cacheDir = flag.String("math-cache", "",
+	"cache directory for maths rendering")
+
+var debugDir = flag.String("math-debug", "",
+	"directory to store math rendering debugging information in")
+
 const (
 	renderRes = 3 * 96
 	imgNames  = "img%d.png"
 	xHeight   = 4.30554 // x-height of cmi10 in TeX pt
 )
-
-var cacheDir = flag.String("math-cache", "",
-	"cache directory for maths rendering")
 
 type Renderer struct {
 	book      *epub.Writer
@@ -89,6 +92,9 @@ func (r *Renderer) cacheFileName(class, formula string) string {
 }
 
 func (r *Renderer) isCached(class, formula string) bool {
+	if *debugDir != "" {
+		return false
+	}
 	filePath := r.cacheFileName(class, formula)
 	_, err := os.Stat(filePath)
 	return err == nil
@@ -410,16 +416,30 @@ func (r *Renderer) Finish() (res *Images, err error) {
 	}
 
 	if len(inline)+len(displayed) > 0 {
-		workDir, err := ioutil.TempDir("", "epub")
-		if err != nil {
-			return nil, err
-		}
-		defer func() {
-			e2 := os.RemoveAll(workDir)
-			if err == nil {
-				err = e2
+		var workDir string
+		if *debugDir == "" {
+			workDir, err = ioutil.TempDir("", "epub")
+			if err != nil {
+				return nil, err
 			}
-		}()
+			defer func() {
+				e2 := os.RemoveAll(workDir)
+				if err == nil {
+					err = e2
+				}
+			}()
+		} else {
+			workDir, err = filepath.Abs(*debugDir)
+			if err != nil {
+				return nil, err
+			}
+			log.Println("leaving math rendering debugging information in",
+				workDir)
+			err = os.MkdirAll(workDir, 0777)
+			if err != nil {
+				return nil, err
+			}
+		}
 
 		oldDir, err := os.Getwd()
 		if err != nil {
