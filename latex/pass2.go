@@ -83,6 +83,8 @@ func (conv *converter) Pass2() (err error) {
 		}
 	}()
 
+	// The following loop must match the corresponding code in
+	// the .Pass1() method.
 	tokFile, err := os.Open(conv.TokenFileName)
 	if err != nil {
 		return err
@@ -155,12 +157,16 @@ func (conv *converter) Pass2() (err error) {
 				mathMode = 0
 				mathTokens = nil
 			} else {
+				ignore := false
 				if token.Type == tokenizer.TokenMacro &&
 					token.Name == "\\label" &&
 					mathLabel == "" {
 					mathLabel = token.Args[0].String()
+					ignore = true
 				}
-				mathTokens = append(mathTokens, token)
+				if !ignore {
+					mathTokens = append(mathTokens, token)
+				}
 			}
 			goto NextToken
 		}

@@ -40,10 +40,12 @@ func (conv *converter) Pass1() error {
 	renderer.AddPreamble("\\usepackage{amsfonts}")
 	renderer.AddPreamble("\\usepackage{amsmath}")
 	renderer.AddPreamble("\\DeclareMathOperator*{\\argmax}{arg\\,max}")
-	mathMode := 0
+	mathMode := false
 	mathEnv := ""
 	var mathTokens tokenizer.TokenList
 
+	// The following loop must match the corresponding code in
+	// the .Pass2() method.
 	tokFile, err := os.Open(conv.TokenFileName)
 	if err != nil {
 		return err
@@ -61,22 +63,22 @@ func (conv *converter) Pass1() error {
 		}
 
 		// maths formulas
-		if mathMode == 0 {
+		if !mathMode {
 			switch {
 			case token.Type == tokenizer.TokenOther && token.Name == "$":
-				mathMode = 1
+				mathMode = true
 				mathEnv = token.Name
 			case token.Type == tokenizer.TokenOther && token.Name == "$$":
-				mathMode = 2
+				mathMode = true
 				mathEnv = token.Name
 			case token.Type == tokenizer.TokenMacro && token.Name == "\\begin":
 				env := token.Args[0].String()
 				if env == "equation" || env == "equation*" {
-					mathMode = 2
+					mathMode = true
 					mathEnv = env
 				}
 			}
-			if mathMode != 0 {
+			if mathMode {
 				goto NextToken
 			}
 		} else {
@@ -93,15 +95,20 @@ func (conv *converter) Pass1() error {
 
 			if eom {
 				body := mathTokens.FormatMaths()
-				if mathMode == 1 {
-					renderer.AddFormula("$", body)
-				} else {
-					renderer.AddFormula("equation*", body)
+				if mathEnv != "$" {
+					mathEnv = "equation*"
 				}
-				mathMode = 0
+				renderer.AddFormula(mathEnv, body)
+				mathMode = false
 				mathTokens = nil
 			} else {
-				mathTokens = append(mathTokens, token)
+				ignore := false
+				if token.Type == tokenizer.TokenMacro && token.Name == "\\label" {
+					ignore = true
+				}
+				if !ignore {
+					mathTokens = append(mathTokens, token)
+				}
 			}
 		}
 
