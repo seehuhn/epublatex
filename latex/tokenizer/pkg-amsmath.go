@@ -18,7 +18,7 @@ package tokenizer
 
 func addAmsmathMacros(p *Tokenizer) {
 	p.macros["\\DeclareMathOperator"] = macroFunc(amsmathDMO)
-	p.macros["\\eqref"] = &defMacro{Count: 1, Body: "(\ref{#1})"}
+	p.macros["\\eqref"] = &defMacro{Count: 1, Body: "(\\ref{#1})"}
 
 	p.environments["align"] = simpleEnv
 	p.environments["align*"] = simpleEnv
