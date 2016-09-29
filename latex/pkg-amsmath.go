@@ -17,5 +17,13 @@
 package latex
 
 func addAmsmathMacros(conv *converter, options string) {
+	// TODO(voss): copy this into the TeX file
 	conv.Macros["\\DeclareMathOperator"] = mIgnore
+
+	conv.Envs["equation*"] = &environment{
+		RenderMath: "equation*",
+	}
+	conv.Envs["align*"] = &environment{
+		RenderMath: "align*",
+	}
 }

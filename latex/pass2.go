@@ -70,8 +70,8 @@ func (conv *converter) convertHTML(tokens tokenizer.TokenList) string {
 
 // Pass2 converts the text to HTML.
 func (conv *converter) Pass2() (err error) {
-	mathMode := 0
-	mathEnv := ""
+	var mathMode isEnd
+	var mathEnv string
 	var mathTokens tokenizer.TokenList
 	var mathLabel string
 
@@ -102,59 +102,29 @@ func (conv *converter) Pass2() (err error) {
 		}
 
 		// maths formulas
-		if mathMode == 0 {
-			switch {
-			case token.Type == tokenizer.TokenOther && token.Name == "$":
-				mathMode = 1
-				mathEnv = token.Name
-			case token.Type == tokenizer.TokenOther && token.Name == "$$":
-				mathMode = 2
-				mathEnv = token.Name
-			case token.Type == tokenizer.TokenMacro && token.Name == "\\begin":
-				env := token.Args[0].String()
-				if env == "equation" || env == "equation*" {
-					mathMode = 2
-					mathEnv = env
-				}
-			}
-			if mathMode != 0 {
+		if mathMode == nil {
+			mathEnv, mathMode = conv.IsMathStart(token)
+			if mathMode != nil {
 				mathLabel = ""
 				goto NextToken
 			}
 		} else {
-			eom := false
-			switch {
-			case token.Type == tokenizer.TokenOther && token.Name == mathEnv:
-				eom = true
-			case token.Type == tokenizer.TokenMacro && token.Name == "\\end":
-				env := token.Args[0].String()
-				if env == mathEnv {
-					eom = true
-				}
-			}
-
-			if eom {
-				body := mathTokens.FormatMaths()
-				var extra, img string
-				if mathMode == 1 {
-					img = conv.Images.Get("$", body)
-				} else {
-					img = conv.Images.Get("equation*", body)
-					if mathLabel != "" {
-						var id, name string
-						for _, label := range conv.Labels {
-							if label.Label == mathLabel {
-								id = label.ID
-								name = label.Name
-							}
+			if mathMode(token) {
+				if mathLabel != "" {
+					var id, name string
+					for _, label := range conv.Labels {
+						if label.Label == mathLabel {
+							id = label.ID
+							name = label.Name
 						}
-						extra = `<br/><span class="latex-eqno" id="` + id +
-							`">(` + name + `)</span>`
 					}
+					w.WriteString("<br/>")
+					w.WriteString(`<span class="latex-eqno" id="` + id +
+						`">(` + name + `)</span>`)
 				}
-				w.WriteString(extra + img)
+				w.WriteString(conv.Images.Get(mathEnv, mathTokens.FormatMaths()))
 
-				mathMode = 0
+				mathMode = nil
 				mathTokens = nil
 			} else {
 				ignore := false

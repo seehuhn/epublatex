@@ -16,8 +16,40 @@
 
 package latex
 
+import "github.com/seehuhn/epublatex/latex/tokenizer"
+
 type environment struct {
 	CSSClasses []string
 	Prefix     string
 	Counter    string
+
+	RenderMath string
+}
+
+type isEnd func(token *tokenizer.Token) bool
+
+func (conv *converter) IsMathStart(token *tokenizer.Token) (string, isEnd) {
+	if token.Type == tokenizer.TokenOther && token.Name == "$" {
+		endFn := func(token *tokenizer.Token) bool {
+			return token.Type == tokenizer.TokenOther && token.Name == "$"
+		}
+		return "$", endFn
+	}
+	if token.Type != tokenizer.TokenMacro || token.Name != "\\begin" {
+		return "", nil
+	}
+
+	envName := token.Args[0].String()
+	env := conv.Envs[envName]
+	if env == nil || env.RenderMath == "" {
+		return "", nil
+	}
+
+	endFn := func(token *tokenizer.Token) bool {
+		if token.Type != tokenizer.TokenMacro || token.Name != "\\end" {
+			return false
+		}
+		return token.Args[0].String() == envName
+	}
+	return env.RenderMath, endFn
 }

@@ -58,8 +58,9 @@ func (conv *converter) addBuiltinMacros() {
 
 	conv.Counters["base@equation"] = &counterInfo{}
 	conv.Envs["equation"] = &environment{
-		Prefix:  "Equation",
-		Counter: "base@equation",
+		Prefix:     "Equation",
+		Counter:    "base@equation",
+		RenderMath: "equation*",
 	}
 }
 

@@ -18,12 +18,18 @@ package latex
 
 import (
 	"encoding/gob"
+	"errors"
 	"io"
+	"log"
 	"os"
 
 	"github.com/seehuhn/epublatex/latex/math"
 	"github.com/seehuhn/epublatex/latex/tokenizer"
 )
+
+// ErrUnterminatedMath indicates the \end{...} tag for a LaTeX maths
+// environment was not found.
+var ErrUnterminatedMath = errors.New("maths environment not terminated")
 
 // Pass1 renders all formulas as images and extracts the cross-references.
 func (conv *converter) Pass1() error {
@@ -40,9 +46,10 @@ func (conv *converter) Pass1() error {
 	renderer.AddPreamble("\\usepackage{amsfonts}")
 	renderer.AddPreamble("\\usepackage{amsmath}")
 	renderer.AddPreamble("\\DeclareMathOperator*{\\argmax}{arg\\,max}")
-	mathMode := false
-	mathEnv := ""
+	var mathMode isEnd
+	var mathEnv string
 	var mathTokens tokenizer.TokenList
+	var mathLabel string
 
 	// The following loop must match the corresponding code in
 	// the .Pass2() method.
@@ -63,47 +70,31 @@ func (conv *converter) Pass1() error {
 		}
 
 		// maths formulas
-		if !mathMode {
-			switch {
-			case token.Type == tokenizer.TokenOther && token.Name == "$":
-				mathMode = true
-				mathEnv = token.Name
-			case token.Type == tokenizer.TokenOther && token.Name == "$$":
-				mathMode = true
-				mathEnv = token.Name
-			case token.Type == tokenizer.TokenMacro && token.Name == "\\begin":
-				env := token.Args[0].String()
-				if env == "equation" || env == "equation*" {
-					mathMode = true
-					mathEnv = env
-				}
-			}
-			if mathMode {
+		if mathMode == nil {
+			mathEnv, mathMode = conv.IsMathStart(token)
+			if mathMode != nil {
+				mathLabel = ""
 				goto NextToken
 			}
 		} else {
-			eom := false
-			switch {
-			case token.Type == tokenizer.TokenOther && token.Name == mathEnv:
-				eom = true
-			case token.Type == tokenizer.TokenMacro && token.Name == "\\end":
-				env := token.Args[0].String()
-				if env == mathEnv {
-					eom = true
-				}
+			// we only need to check this in once, in pass 1
+			if token.Type == tokenizer.TokenEmptyLine {
+				log.Println("maths environment not terminated\n" +
+					mathTokens.FormatMaths())
+				return ErrUnterminatedMath
 			}
 
-			if eom {
-				body := mathTokens.FormatMaths()
-				if mathEnv != "$" {
-					mathEnv = "equation*"
-				}
-				renderer.AddFormula(mathEnv, body)
-				mathMode = false
+			if mathMode(token) {
+				renderer.AddFormula(mathEnv, mathTokens.FormatMaths())
+
+				mathMode = nil
 				mathTokens = nil
 			} else {
 				ignore := false
-				if token.Type == tokenizer.TokenMacro && token.Name == "\\label" {
+				if token.Type == tokenizer.TokenMacro &&
+					token.Name == "\\label" &&
+					mathLabel == "" {
+					mathLabel = token.Args[0].String()
 					ignore = true
 				}
 				if !ignore {
