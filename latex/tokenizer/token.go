@@ -80,7 +80,9 @@ func (toks TokenList) FormatText() string {
 			res = append(res, tok.Name)
 			for _, arg := range tok.Args {
 				text := arg.Value.FormatText()
-				if arg.Optional {
+				if tok.Name == "\\hskip" {
+					// pass
+				} else if arg.Optional {
 					if text != "" {
 						text = "[" + text + "]"
 					}
@@ -104,7 +106,10 @@ func (toks TokenList) FormatText() string {
 		default:
 			panic("invalid token type " + strconv.Itoa(int(tok.Type)))
 		}
-		mayNeedSpace = tok.Type == TokenMacro && len(tok.Args) == 0
+		if tok.Type != TokenSpace {
+			mayNeedSpace = tok.Type == TokenMacro && len(tok.Args) == 0 ||
+				tok.Type == TokenMacro && tok.Name == "\\hskip"
+		}
 	}
 	return strings.Join(res, "")
 }
@@ -119,6 +124,8 @@ func (toks TokenList) FormatMaths() string {
 			for _, arg := range tok.Args {
 				if tok.Name == "\\mbox" {
 					res = append(res, "{"+arg.Value.FormatText()+"}")
+				} else if tok.Name == "\\hskip" {
+					res = append(res, arg.Value.FormatText())
 				} else if arg.Optional {
 					val := arg.Value.FormatMaths()
 					if val != "" {
@@ -142,7 +149,8 @@ func (toks TokenList) FormatMaths() string {
 			panic("invalid token type " + strconv.Itoa(int(tok.Type)))
 		}
 		if tok.Type != TokenSpace {
-			mayNeedSpace = tok.Type == TokenMacro && len(tok.Args) == 0
+			mayNeedSpace = tok.Type == TokenMacro && len(tok.Args) == 0 ||
+				tok.Type == TokenMacro && tok.Name == "\\hskip"
 		}
 	}
 	return strings.Join(res, "")

@@ -85,6 +85,7 @@ func (conv *converter) Pass2() (err error) {
 
 	// The following loop must match the corresponding code in
 	// the .Pass1() method.
+	conv.Section = nil
 	tokFile, err := os.Open(conv.TokenFileName)
 	if err != nil {
 		return err

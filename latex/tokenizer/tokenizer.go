@@ -18,6 +18,7 @@ package tokenizer
 
 import (
 	"bytes"
+	"io"
 	"log"
 
 	"github.com/seehuhn/epublatex/latex/scanner"
@@ -221,6 +222,80 @@ func (p *Tokenizer) readWord() (string, error) {
 		}
 	}
 	return string(res), nil
+}
+
+func (p *Tokenizer) readNumber() (string, error) {
+	var res []byte
+	for p.Next() {
+		buf, err := p.Peek()
+		if err != nil {
+			return "", err
+		}
+
+		pos := 0
+		for pos < len(buf) &&
+			(isDigit(buf[pos]) || buf[pos] == '.' || buf[pos] == '-') {
+			pos++
+		}
+		res = append(res, buf[:pos]...)
+		p.Skip(pos)
+
+		if pos < len(buf) {
+			break
+		}
+	}
+	return string(res), nil
+}
+
+var isUnit = map[string]bool{
+	"pt":    true,
+	"pc":    true,
+	"bp":    true,
+	"in":    true,
+	"cm":    true,
+	"mm":    true,
+	"dd":    true,
+	"cc":    true,
+	"sp":    true,
+	"ex":    true,
+	"em":    true,
+	"fil":   true,
+	"fill":  true,
+	"filll": true,
+}
+
+func (p *Tokenizer) readUnit() (string, error) {
+	if !p.Next() {
+		return "", io.EOF
+	}
+
+	buf, err := p.Peek()
+	if err != nil {
+		return "", err
+	}
+
+	l := 0
+	for l < len(buf) && isLetter(buf[l]) {
+		l++
+	}
+	word := string(buf[:l])
+	if !isUnit[word] {
+		var next string
+		if len(buf) > 13 {
+			next = string(buf[:10]) + "..."
+		} else {
+			next = string(buf)
+		}
+		return "", p.MakeError("expected unit, got " + next)
+	}
+	p.Skip(l)
+
+	_, err = p.skipWhiteSpace()
+	if err != nil {
+		return "", err
+	}
+
+	return word, nil
 }
 
 func parseString(text string) TokenList {

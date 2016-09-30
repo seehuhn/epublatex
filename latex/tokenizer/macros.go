@@ -73,6 +73,7 @@ func (p *Tokenizer) addBuiltinMacros() {
 	p.macros["\\eta"] = typedMacro("")
 	p.macros["\\frac"] = typedMacro("AA")
 	p.macros["\\gamma"] = typedMacro("")
+	p.macros["\\hskip"] = macroFunc(parseHskip)
 	p.macros["\\in"] = typedMacro("")
 	p.macros["\\infty"] = typedMacro("")
 	p.macros["\\int"] = typedMacro("")
@@ -149,6 +150,47 @@ func parseDocumentclass(p *Tokenizer, name string) (TokenList, error) {
 	return TokenList{tok}, nil
 }
 
+func parseUsepackage(p *Tokenizer, name string) (TokenList, error) {
+	var res TokenList
+
+	options, err := p.readOptionalArg()
+	if err != nil {
+		return nil, err
+	}
+	packages, err := p.readMandatoryArg()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, pkg := range strings.Split(packages, ",") {
+		pkg = strings.TrimSpace(pkg)
+
+		load := pkgInit[pkg]
+		if load != nil {
+			load(p)
+		} else {
+			log.Printf("unknown usepackage %q", pkg)
+		}
+
+		tok := &Token{
+			Type: TokenMacro,
+			Name: name,
+			Args: []*Arg{
+				&Arg{
+					Optional: true,
+					Value:    TokenList{verbatim(options)},
+				},
+				&Arg{
+					Optional: false,
+					Value:    TokenList{verbatim(pkg)},
+				},
+			},
+		}
+		res = append(res, tok)
+	}
+	return res, nil
+}
+
 func parseDef(p *Tokenizer, _ string) (TokenList, error) {
 	defName, err := p.readMacroName()
 	if err != nil {
@@ -186,6 +228,31 @@ func parseDef(p *Tokenizer, _ string) (TokenList, error) {
 		}
 	}
 	return nil, nil
+}
+
+func parseHskip(p *Tokenizer, name string) (TokenList, error) {
+	amount, err := p.readNumber()
+	if err != nil {
+		return nil, err
+	}
+	_, err = p.skipWhiteSpace()
+	if err != nil {
+		return nil, err
+	}
+	unit, err := p.readUnit()
+	if err != nil {
+		return nil, err
+	}
+	tok := &Token{
+		Type: TokenMacro,
+		Name: name,
+		Args: []*Arg{
+			&Arg{
+				Value: TokenList{verbatim(amount + unit)},
+			},
+		},
+	}
+	return TokenList{tok}, nil
 }
 
 type letMacro string
@@ -250,47 +317,6 @@ func substituteMacroArgs(body string, args []string) string {
 	}
 	parts = append(parts, body[partStart:])
 	return strings.Join(parts, "")
-}
-
-func parseUsepackage(p *Tokenizer, name string) (TokenList, error) {
-	var res TokenList
-
-	options, err := p.readOptionalArg()
-	if err != nil {
-		return nil, err
-	}
-	packages, err := p.readMandatoryArg()
-	if err != nil {
-		return nil, err
-	}
-
-	for _, pkg := range strings.Split(packages, ",") {
-		pkg = strings.TrimSpace(pkg)
-
-		load := pkgInit[pkg]
-		if load != nil {
-			load(p)
-		} else {
-			log.Printf("unknown usepackage %q", pkg)
-		}
-
-		tok := &Token{
-			Type: TokenMacro,
-			Name: name,
-			Args: []*Arg{
-				&Arg{
-					Optional: true,
-					Value:    TokenList{verbatim(options)},
-				},
-				&Arg{
-					Optional: false,
-					Value:    TokenList{verbatim(pkg)},
-				},
-			},
-		}
-		res = append(res, tok)
-	}
-	return res, nil
 }
 
 type typedMacro string
