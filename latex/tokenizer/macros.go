@@ -106,6 +106,8 @@ func (p *Tokenizer) addBuiltinMacros() {
 	p.macros["\\varphi"] = typedMacro("")
 	p.macros["\\xi"] = typedMacro("")
 	p.macros["\\zeta"] = typedMacro("")
+	p.macros["\\{"] = typedMacro("")
+	p.macros["\\}"] = typedMacro("")
 
 	p.environments["document"] = simpleEnv
 	p.environments["equation"] = simpleEnv

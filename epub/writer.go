@@ -21,6 +21,7 @@ import (
 	"bufio"
 	"compress/flate"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -44,9 +45,10 @@ const (
 	navName       = "nav"
 	coverName     = "cover"
 	titleName     = "title"
-
-	TmplPath = "tmpl"
 )
+
+var DefaultTemplateDir = flag.String("epub-templates", "tmpl",
+	"directory where the EPUB template files can be found")
 
 var (
 	ErrBookClosed        = errors.New("attempt to write in a closed book")
@@ -90,10 +92,15 @@ type Writer struct {
 	tmplDir     string
 }
 
-func NewWriter(w io.Writer, identifier string) (*Writer, error) {
+type Settings struct {
+	TemplateDir string
+}
+
+func NewWriter(out io.Writer, identifier string, settings *Settings) (
+	*Writer, error) {
 	nameSpace := uuid.NewSHA1(uuid.NameSpaceURL, []byte(baseNameSpaceURL))
 
-	zipFile := zip.NewWriter(w)
+	zipFile := zip.NewWriter(out)
 	zipFile.RegisterCompressor(zip.Deflate,
 		func(out io.Writer) (io.WriteCloser, error) {
 			return flate.NewWriter(out, flate.BestCompression)
@@ -114,12 +121,16 @@ func NewWriter(w io.Writer, identifier string) (*Writer, error) {
 		return nil, err
 	}
 
-	tmplDir, err := filepath.Abs(TmplPath)
+	tmplDir := *DefaultTemplateDir
+	if settings != nil && settings.TemplateDir != "" {
+		tmplDir = settings.TemplateDir
+	}
+	tmplDir, err = filepath.Abs(tmplDir)
 	if err != nil {
 		return nil, err
 	}
 
-	epub := &Writer{
+	w := &Writer{
 		UUID:         uuid.NewSHA1(nameSpace, []byte(identifier)),
 		LastModified: time.Now().UTC().Format(time.RFC3339),
 		Language:     "en-GB",
@@ -131,62 +142,62 @@ func NewWriter(w io.Writer, identifier string) (*Writer, error) {
 		tmplDir: tmplDir,
 	}
 
-	nav := epub.RegisterFile(navName, "application/xhtml+xml", false)
-	epub.NavPath = nav.Path
-	css := epub.RegisterFile(cssName, "text/css", false)
-	epub.CSSPath = css.Path
+	nav := w.RegisterFile(navName, "application/xhtml+xml", false)
+	w.NavPath = nav.Path
+	css := w.RegisterFile(cssName, "text/css", false)
+	w.CSSPath = css.Path
 
-	return epub, nil
+	return w, nil
 }
 
-func (epub *Writer) Flush() error {
-	if !epub.open {
+func (w *Writer) Flush() error {
+	if !w.open {
 		return nil
 	}
 
-	err := epub.closeSections(0)
+	err := w.closeSections(0)
 	if err != nil {
 		return err
 	}
 
-	k := len(epub.Nav) - 1
+	k := len(w.Nav) - 1
 	if k >= 0 {
-		epub.Nav[k].down = epub.Nav[k].Level
+		w.Nav[k].down = w.Nav[k].Level
 	}
 
-	epub.ContentName = contentDir + epub.uniqueName(contentName, contentExt)
+	w.ContentName = contentDir + w.uniqueName(contentName, contentExt)
 
 	files := []struct {
 		path      string
 		templates []string
 	}{
-		{contentDir + epub.Files[epub.CSSPath].Path,
+		{contentDir + w.Files[w.CSSPath].Path,
 			[]string{"book.css"}},
-		{contentDir + epub.Files[epub.NavPath].Path,
+		{contentDir + w.Files[w.NavPath].Path,
 			[]string{"nav.xhtml", "config/epub"}},
-		{epub.ContentName,
+		{w.ContentName,
 			[]string{"content.opf"}},
 		{containerName,
 			[]string{"container.xml"}},
 	}
 	for _, file := range files {
-		err := epub.addFileFromTemplate(file.path, file.templates, nil)
+		err := w.addFileFromTemplate(file.path, file.templates, nil)
 		if err != nil {
 			return err
 		}
 	}
 
-	epub.zip.Close()
-	epub.open = false
+	w.zip.Close()
+	w.open = false
 	return nil
 }
 
-func (epub *Writer) RegisterFile(name, mimeType string, inSpine bool) *File {
+func (w *Writer) RegisterFile(baseName, mimeType string, inSpine bool) *File {
 	file := &File{
-		ID:        "f" + strconv.Itoa(epub.nextID),
+		ID:        "f" + strconv.Itoa(w.nextID),
 		MediaType: mimeType,
 	}
-	epub.nextID++
+	w.nextID++
 
 	dir := ""
 	ext := ""
@@ -205,25 +216,49 @@ func (epub *Writer) RegisterFile(name, mimeType string, inSpine bool) *File {
 	default:
 		panic("unknown mime type " + mimeType)
 	}
-	file.Path = epub.uniqueName(dir+name, ext)
+	file.Path = w.uniqueName(dir+baseName, ext)
 
-	epub.Files[file.Path] = file
+	w.Files[file.Path] = file
 	if inSpine {
-		epub.Spine = append(epub.Spine, file)
+		w.Spine = append(w.Spine, file)
 	}
 	return file
 }
 
-func (epub *Writer) CreateFile(file *File) (io.Writer, error) {
-	err := epub.closeSections(0)
-	if err != nil {
-		return nil, err
+func (w *Writer) createFile(path string) error {
+	if w.current != nil {
+		err := w.closeFile()
+		if err != nil {
+			return err
+		}
 	}
-	return epub.zip.Create(contentDir + file.Path)
+	out, err := w.zip.Create(path)
+	if err != nil {
+		return err
+	}
+	w.current = out
+	return nil
 }
 
-func (epub *Writer) AddCoverImage(r io.Reader) error {
-	if !epub.open {
+func (w *Writer) closeFile() error {
+	w.current = nil
+	return nil
+}
+
+func (w *Writer) CreateFile(file *File) error {
+	if !w.open {
+		return ErrBookClosed
+	}
+
+	err := w.closeSections(0)
+	if err != nil {
+		return err
+	}
+	return w.createFile(contentDir + file.Path)
+}
+
+func (w *Writer) AddCoverImage(r io.Reader) error {
+	if !w.open {
 		return ErrBookClosed
 	}
 
@@ -237,19 +272,23 @@ func (epub *Writer) AddCoverImage(r io.Reader) error {
 		return ErrWrongFileType
 	}
 
-	coverImage := epub.RegisterFile(coverName, mimeType, false)
-	fd, err := epub.CreateFile(coverImage)
+	coverImage := w.RegisterFile(coverName, mimeType, false)
+	err = w.CreateFile(coverImage)
 	if err != nil {
 		return err
 	}
-	_, err = io.Copy(fd, rBuf)
+	_, err = io.Copy(w.current, rBuf)
 	if err != nil {
 		return err
 	}
-	epub.CoverImageID = coverImage.ID
+	err = w.closeFile()
+	if err != nil {
+		return err
+	}
+	w.CoverImageID = coverImage.ID
 
-	cover := epub.RegisterFile(coverName, "application/xhtml+xml", true)
-	err = epub.addFileFromTemplate(contentDir+cover.Path,
+	cover := w.RegisterFile(coverName, "application/xhtml+xml", true)
+	err = w.addFileFromTemplate(contentDir+cover.Path,
 		[]string{"cover.xhtml", "config/epub"},
 		map[string]string{
 			"CoverImage": coverImage.Path,
@@ -257,21 +296,21 @@ func (epub *Writer) AddCoverImage(r io.Reader) error {
 	if err != nil {
 		return err
 	}
-	epub.CoverID = cover.ID
+	w.CoverID = cover.ID
 
 	return nil
 }
 
-func (epub *Writer) WriteTitle() error {
-	if !epub.open {
+func (w *Writer) WriteTitle() error {
+	if !w.open {
 		return ErrBookClosed
 	}
-	if epub.Title == "" {
+	if w.Title == "" {
 		return ErrNoTitle
 	}
 
-	file := epub.RegisterFile(titleName, "application/xhtml+xml", true)
-	err := epub.addFileFromTemplate(contentDir+file.Path,
+	file := w.RegisterFile(titleName, "application/xhtml+xml", true)
+	err := w.addFileFromTemplate(contentDir+file.Path,
 		[]string{"title.xhtml", "config/epub"}, nil)
 	if err != nil {
 		return err
@@ -280,26 +319,29 @@ func (epub *Writer) WriteTitle() error {
 	return nil
 }
 
-func (epub *Writer) closeSections(level int) error {
-	if epub.SectionLevel <= level {
+func (w *Writer) closeSections(level int) error {
+	if w.SectionLevel <= level {
 		return nil
 	}
 
-	for epub.SectionLevel > level {
-		err := epub.writeTemplates(epub.current,
+	for w.SectionLevel > level {
+		err := w.writeTemplates(w.current,
 			[]string{"section-tail.xhtml"},
 			nil)
 		if err != nil {
 			return err
 		}
-		epub.SectionLevel--
+		w.SectionLevel--
 	}
 
-	if epub.SectionLevel <= 0 {
-		err := epub.writeTemplates(epub.current,
+	if w.SectionLevel <= 0 {
+		err := w.writeTemplates(w.current,
 			[]string{"chapter-tail.xhtml"},
 			nil)
-		epub.current = nil
+		if err != nil {
+			return err
+		}
+		err = w.closeFile()
 		if err != nil {
 			return err
 		}
@@ -307,33 +349,34 @@ func (epub *Writer) closeSections(level int) error {
 	return nil
 }
 
-func (epub *Writer) AddSection(level int, title string, secID string) error {
-	if level <= 0 || level > epub.SectionLevel+1 {
+func (w *Writer) AddSection(level int, title string, secID string) error {
+	if !w.open {
+		return ErrBookClosed
+	}
+	if level <= 0 || level > w.SectionLevel+1 {
 		return ErrWrongSectionLevel
 	}
-	err := epub.closeSections(level - 1)
+	err := w.closeSections(level - 1)
 	if err != nil {
 		return err
 	}
-	epub.SectionLevel = level
-	epub.SectionNumber.Inc(level)
+	w.SectionLevel = level
+	w.SectionNumber.Inc(level)
 
-	if epub.current == nil {
-		name := fmt.Sprintf("ch%s", epub.SectionNumber)
-		file := epub.RegisterFile(name, "application/xhtml+xml", true)
+	if w.current == nil {
+		name := fmt.Sprintf("ch%s", w.SectionNumber)
+		file := w.RegisterFile(name, "application/xhtml+xml", true)
 
-		w, err := epub.zip.Create(contentDir + file.Path)
+		err := w.createFile(contentDir + file.Path)
 		if err != nil {
 			return err
 		}
-		epub.current = w
-		epub.currentPath = file.Path
-		err = epub.writeTemplates(epub.current,
+		w.currentPath = file.Path
+		err = w.writeTemplates(w.current,
 			[]string{"chapter-head.xhtml", "config/epub"},
 			map[string]interface{}{
 				"Level": level,
 				"Title": title,
-				"EPUB":  epub,
 			})
 		if err != nil {
 			return err
@@ -341,54 +384,56 @@ func (epub *Writer) AddSection(level int, title string, secID string) error {
 	}
 
 	if secID == "" {
-		secID = "epub-" + epub.SectionNumber.String()
+		secID = "epub-" + w.SectionNumber.String()
 	}
 
-	k := len(epub.Nav) - 1
+	k := len(w.Nav) - 1
 	var up, down int
 	if k >= 0 {
-		if level < epub.Nav[k].Level {
-			down = epub.Nav[k].Level - level
+		if level < w.Nav[k].Level {
+			down = w.Nav[k].Level - level
 		} else {
-			up = level - epub.Nav[k].Level
+			up = level - w.Nav[k].Level
 		}
-		epub.Nav[k].down = down
+		w.Nav[k].down = down
 	} else {
 		up = level
 	}
 
-	epub.Nav = append(epub.Nav, TOCEntry{
+	w.Nav = append(w.Nav, TOCEntry{
 		Level: level,
 		Title: title,
-		Path:  epub.currentPath,
+		Path:  w.currentPath,
 		ID:    secID,
 		up:    up,
 	})
 
-	return epub.writeTemplates(epub.current,
+	return w.writeTemplates(w.current,
 		[]string{"section-head.xhtml"},
 		map[string]interface{}{
 			"Level": level,
-			"SecNo": epub.SectionNumber,
+			"SecNo": w.SectionNumber,
 			"Title": title,
-			"EPUB":  epub,
 			"ID":    secID,
 		})
 }
 
-func (epub *Writer) WriteString(s string) error {
-	if epub.current == nil {
+func (w *Writer) WriteString(s string) error {
+	if !w.open {
+		return ErrBookClosed
+	}
+	if w.current == nil {
 		return ErrNoSection
 	}
-	_, err := epub.current.Write([]byte(s))
+	_, err := w.current.Write([]byte(s))
 	return err
 }
 
-func (epub *Writer) uniqueName(name, ext string) string {
+func (w *Writer) uniqueName(name, ext string) string {
 	tryName := name + ext
 	unique := 2
 	for {
-		_, clash := epub.Files[tryName]
+		_, clash := w.Files[tryName]
 		if !clash {
 			break
 		}

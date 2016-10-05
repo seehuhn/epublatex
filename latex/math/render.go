@@ -38,10 +38,10 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-var cacheDir = flag.String("math-cache", "",
+var cacheDir = flag.String("latex-math-cache", "",
 	"cache directory for maths rendering")
 
-var debugDir = flag.String("math-debug", "",
+var debugDir = flag.String("latex-math-debug", "",
 	"directory to store math rendering debugging information in")
 
 const (

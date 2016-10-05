@@ -41,7 +41,7 @@ func main() {
 	}
 	defer out.Close()
 
-	book, err := epub.NewWriter(out, "my second ebook (test)")
+	book, err := epub.NewWriter(out, "my second ebook (test)", nil)
 	if err != nil {
 		log.Fatal(err)
 	}

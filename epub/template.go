@@ -47,12 +47,12 @@ var templateFunctions = template.FuncMap{
 	"formatlist": templateFormatList,
 }
 
-func (epub *Writer) writeTemplates(w io.Writer, tmplFiles []string,
+func (w *Writer) writeTemplates(out io.Writer, tmplFiles []string,
 	data interface{}) error {
 
 	tmp := make([]string, len(tmplFiles))
 	for i, f := range tmplFiles {
-		tmp[i] = filepath.Join(epub.tmplDir, f)
+		tmp[i] = filepath.Join(w.tmplDir, f)
 	}
 	tmplFiles = tmp
 
@@ -64,21 +64,25 @@ func (epub *Writer) writeTemplates(w io.Writer, tmplFiles []string,
 		return err
 	}
 	// TODO(voss): don't hardcode the parts directory
-	tmpl, err = tmpl.ParseGlob(filepath.Join(epub.tmplDir, "parts", "*"))
+	tmpl, err = tmpl.ParseGlob(filepath.Join(w.tmplDir, "parts", "*"))
 	if err != nil {
 		return err
 	}
-	return tmpl.Execute(w, map[string]interface{}{
+	return tmpl.Execute(out, map[string]interface{}{
 		"This": data,
-		"Book": epub,
+		"Book": w,
 	})
 }
 
-func (epub *Writer) addFileFromTemplate(path string, tmplFiles []string,
+func (w *Writer) addFileFromTemplate(path string, tmplFiles []string,
 	data interface{}) error {
-	zipFile, err := epub.zip.Create(path)
+	err := w.createFile(path)
 	if err != nil {
 		return err
 	}
-	return epub.writeTemplates(zipFile, tmplFiles, data)
+	err = w.writeTemplates(w.current, tmplFiles, data)
+	if err != nil {
+		return err
+	}
+	return w.closeFile()
 }
