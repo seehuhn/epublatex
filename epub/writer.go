@@ -64,7 +64,19 @@ type File struct {
 	Path      string
 }
 
-type Writer struct {
+type Writer interface {
+	AddCoverImage(r io.Reader) error
+	AddTitle(title string, authors []string) error
+	AddSection(level int, title string, secID string) error
+
+	RegisterFile(baseName, mimeType string, inSpine bool) *File
+	CreateFile(file *File) (io.Writer, error)
+	WriteString(s string) error
+
+	Flush() error
+}
+
+type epub struct {
 	UUID         uuid.UUID
 	LastModified string
 	Language     string
@@ -97,7 +109,7 @@ type Settings struct {
 }
 
 func NewWriter(out io.Writer, identifier string, settings *Settings) (
-	*Writer, error) {
+	Writer, error) {
 	nameSpace := uuid.NewSHA1(uuid.NameSpaceURL, []byte(baseNameSpaceURL))
 
 	zipFile := zip.NewWriter(out)
@@ -130,7 +142,7 @@ func NewWriter(out io.Writer, identifier string, settings *Settings) (
 		return nil, err
 	}
 
-	w := &Writer{
+	w := &epub{
 		UUID:         uuid.NewSHA1(nameSpace, []byte(identifier)),
 		LastModified: time.Now().UTC().Format(time.RFC3339),
 		Language:     "en-GB",
@@ -150,7 +162,7 @@ func NewWriter(out io.Writer, identifier string, settings *Settings) (
 	return w, nil
 }
 
-func (w *Writer) Flush() error {
+func (w *epub) Flush() error {
 	if !w.open {
 		return nil
 	}
@@ -192,7 +204,7 @@ func (w *Writer) Flush() error {
 	return nil
 }
 
-func (w *Writer) RegisterFile(baseName, mimeType string, inSpine bool) *File {
+func (w *epub) RegisterFile(baseName, mimeType string, inSpine bool) *File {
 	file := &File{
 		ID:        "f" + strconv.Itoa(w.nextID),
 		MediaType: mimeType,
@@ -225,7 +237,7 @@ func (w *Writer) RegisterFile(baseName, mimeType string, inSpine bool) *File {
 	return file
 }
 
-func (w *Writer) createFile(path string) error {
+func (w *epub) createFile(path string) error {
 	if w.current != nil {
 		err := w.closeFile()
 		if err != nil {
@@ -240,24 +252,28 @@ func (w *Writer) createFile(path string) error {
 	return nil
 }
 
-func (w *Writer) closeFile() error {
+func (w *epub) closeFile() error {
 	w.current = nil
 	return nil
 }
 
-func (w *Writer) CreateFile(file *File) error {
+func (w *epub) CreateFile(file *File) (io.Writer, error) {
 	if !w.open {
-		return ErrBookClosed
+		return nil, ErrBookClosed
 	}
 
 	err := w.closeSections(0)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return w.createFile(contentDir + file.Path)
+	err = w.createFile(contentDir + file.Path)
+	if err != nil {
+		return nil, err
+	}
+	return w.current, nil
 }
 
-func (w *Writer) AddCoverImage(r io.Reader) error {
+func (w *epub) AddCoverImage(r io.Reader) error {
 	if !w.open {
 		return ErrBookClosed
 	}
@@ -273,7 +289,7 @@ func (w *Writer) AddCoverImage(r io.Reader) error {
 	}
 
 	coverImage := w.RegisterFile(coverName, mimeType, false)
-	err = w.CreateFile(coverImage)
+	_, err = w.CreateFile(coverImage)
 	if err != nil {
 		return err
 	}
@@ -301,14 +317,13 @@ func (w *Writer) AddCoverImage(r io.Reader) error {
 	return nil
 }
 
-func (w *Writer) WriteTitle() error {
+func (w *epub) AddTitle(title string, authors []string) error {
 	if !w.open {
 		return ErrBookClosed
 	}
-	if w.Title == "" {
-		return ErrNoTitle
-	}
 
+	w.Title = title
+	w.Authors = authors
 	file := w.RegisterFile(titleName, "application/xhtml+xml", true)
 	err := w.addFileFromTemplate(contentDir+file.Path,
 		[]string{"title.xhtml", "config/epub"}, nil)
@@ -319,7 +334,7 @@ func (w *Writer) WriteTitle() error {
 	return nil
 }
 
-func (w *Writer) closeSections(level int) error {
+func (w *epub) closeSections(level int) error {
 	if w.SectionLevel <= level {
 		return nil
 	}
@@ -349,7 +364,7 @@ func (w *Writer) closeSections(level int) error {
 	return nil
 }
 
-func (w *Writer) AddSection(level int, title string, secID string) error {
+func (w *epub) AddSection(level int, title string, secID string) error {
 	if !w.open {
 		return ErrBookClosed
 	}
@@ -418,7 +433,7 @@ func (w *Writer) AddSection(level int, title string, secID string) error {
 		})
 }
 
-func (w *Writer) WriteString(s string) error {
+func (w *epub) WriteString(s string) error {
 	if !w.open {
 		return ErrBookClosed
 	}
@@ -429,7 +444,7 @@ func (w *Writer) WriteString(s string) error {
 	return err
 }
 
-func (w *Writer) uniqueName(name, ext string) string {
+func (w *epub) uniqueName(name, ext string) string {
 	tryName := name + ext
 	unique := 2
 	for {

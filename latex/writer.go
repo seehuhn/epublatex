@@ -30,7 +30,7 @@ const outputLineWidth = 79
 const cssPrefix = "latex-"
 
 type writer struct {
-	out     *epub.Writer
+	out     epub.Writer
 	baseDir string
 
 	word       []byte
@@ -38,7 +38,7 @@ type writer struct {
 	lineLength int
 }
 
-func newWriter(out *epub.Writer, baseDir string) *writer {
+func newWriter(out epub.Writer, baseDir string) *writer {
 	return &writer{
 		out:     out,
 		baseDir: baseDir,
@@ -60,9 +60,7 @@ func (w *writer) AddCoverImage(fname string) error {
 
 func (w *writer) WriteTitle(title, author string) error {
 	e1 := w.EndParagraph()
-	w.out.Title = title
-	w.out.Authors = []string{author}
-	e2 := w.out.WriteTitle()
+	e2 := w.out.AddTitle(title, []string{author})
 	return mergeErrors(e1, e2)
 }
 

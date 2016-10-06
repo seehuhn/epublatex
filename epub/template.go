@@ -47,7 +47,7 @@ var templateFunctions = template.FuncMap{
 	"formatlist": templateFormatList,
 }
 
-func (w *Writer) writeTemplates(out io.Writer, tmplFiles []string,
+func (w *epub) writeTemplates(out io.Writer, tmplFiles []string,
 	data interface{}) error {
 
 	tmp := make([]string, len(tmplFiles))
@@ -74,7 +74,7 @@ func (w *Writer) writeTemplates(out io.Writer, tmplFiles []string,
 	})
 }
 
-func (w *Writer) addFileFromTemplate(path string, tmplFiles []string,
+func (w *epub) addFileFromTemplate(path string, tmplFiles []string,
 	data interface{}) error {
 	err := w.createFile(path)
 	if err != nil {

@@ -51,14 +51,14 @@ const (
 )
 
 type Renderer struct {
-	book     *epub.Writer
+	book     epub.Writer
 	preamble []string
 	formulas map[string]int
 
 	cacheDir string
 }
 
-func NewRenderer(book *epub.Writer) (*Renderer, error) {
+func NewRenderer(book epub.Writer) (*Renderer, error) {
 	r := &Renderer{
 		book:     book,
 		formulas: make(map[string]int),
