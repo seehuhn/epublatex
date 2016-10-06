@@ -17,7 +17,6 @@
 package epub
 
 import (
-	"io"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -47,7 +46,7 @@ var templateFunctions = template.FuncMap{
 	"formatlist": templateFormatList,
 }
 
-func (w *epub) writeTemplates(out io.Writer, tmplFiles []string,
+func (w *book) writeTemplates(tmplFiles []string,
 	data interface{}) error {
 
 	tmp := make([]string, len(tmplFiles))
@@ -68,19 +67,19 @@ func (w *epub) writeTemplates(out io.Writer, tmplFiles []string,
 	if err != nil {
 		return err
 	}
-	return tmpl.Execute(out, map[string]interface{}{
+	return tmpl.Execute(w.current, map[string]interface{}{
 		"This": data,
 		"Book": w,
 	})
 }
 
-func (w *epub) addFileFromTemplate(path string, tmplFiles []string,
+func (w *book) addFileFromTemplate(path string, tmplFiles []string,
 	data interface{}) error {
 	err := w.createFile(path)
 	if err != nil {
 		return err
 	}
-	err = w.writeTemplates(w.current, tmplFiles, data)
+	err = w.writeTemplates(tmplFiles, data)
 	if err != nil {
 		return err
 	}

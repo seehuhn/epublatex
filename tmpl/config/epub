@@ -1,3 +1,9 @@
-{{define "xhtml-lang"}}{{with .Book.Language}} xml:lang="{{.}}" lang="{{.}}"{{end}}{{end -}}
-{{define "stylesheets"}}<link rel="stylesheet" type="text/css" href="{{.Book.CSSPath}}"/>
+{{define "xml-decl"}}<?xml version="1.0" encoding="utf-8"?>
 {{end -}}
+{{define "xmlns-epub"}} xmlns:epub="http://www.idpf.org/2007/ops"{{end -}}
+{{define "xhtml-lang" -}}
+  {{with .Book.Language}} xml:lang="{{.}}" lang="{{.}}"{{end}}{{end -}}
+{{define "stylesheets" -}}
+  <link rel="stylesheet" type="text/css" href="{{.Book.CSSPath}}"/>
+{{end -}}
+{{define "epub:type"}} epub:type="{{.}}"{{end -}}

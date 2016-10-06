@@ -2,7 +2,8 @@
 <title>{{.Book.Title}}</title>
 {{end -}}
 
-{{define "body-attributes"}} id="titlepage" epub:type="frontmatter titlepage"{{end -}}
+{{define "body-attributes"}} id="titlepage" {{block "epub:type" "frontmatter titlepage" -}}
+{{end}}{{end -}}
 
 {{define "contents" -}}
 <h1>{{html .Book.Title}}</h1>

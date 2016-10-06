@@ -1,4 +1,4 @@
-{{template "xml" . -}}
+<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://www.idpf.org/2007/opf"
 	 version="3.0"
 	 xml:lang="{{.Book.Language}}"

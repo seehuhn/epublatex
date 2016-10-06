@@ -4,7 +4,7 @@
 
 {{define "contents" -}}
 <h1>Table of Contents</h1>
-<nav epub:type="toc">{{range $x := .Book.Nav -}}
+<nav {{block "epub:type" "toc"}}{{end}}>{{range $x := .Book.Nav -}}
 {{range $x.Up}}
 <ol>
 <li>{{else}}</li><li>{{end -}}
