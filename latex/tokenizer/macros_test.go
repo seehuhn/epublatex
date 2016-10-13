@@ -146,3 +146,72 @@ func TestSubstituteMacroArgs(t *testing.T) {
 		}
 	}
 }
+
+func TestParseVerb(t *testing.T) {
+	testCases := []struct {
+		in  string
+		out string
+	}{
+		{"|hello| and", "hello"},
+		{"/hello/ and", "hello"},
+		{"|}\\test{| and", "}\\test{"},
+	}
+	for i, testCase := range testCases {
+		p := NewTokenizer()
+		p.Prepend([]byte(testCase.in), "test input")
+
+		toks, err := parseVerb(p, "\\verb")
+		if err != nil {
+			t.Error("test case", i, "got error", err)
+			continue
+		}
+		if len(toks) != 1 {
+			t.Error("test case", i, "got len(toks) =", len(toks))
+			continue
+		}
+		tok := toks[0]
+		if tok.Type != TokenMacro {
+			t.Error("test case", i, "got wrong token type", tok.Type)
+			continue
+		}
+		if tok.Name != "\\verb" {
+			t.Error("test case", i, "got wrong token name", tok.Name)
+			continue
+		}
+		if len(tok.Args) != 1 {
+			t.Error("test case", i, "got wrong number of arguments:",
+				len(tok.Args))
+			continue
+		}
+		args := tok.Args[0].Value
+		if len(args) != 1 {
+			t.Error("test case", i, "got wrong length of argument:",
+				len(args))
+			continue
+		}
+		arg := args[0]
+		if arg.Type != TokenVerbatim {
+			t.Error("test case", i, "arg got wrong token type", tok.Type)
+			continue
+		}
+		if arg.Name != testCase.out {
+			t.Error("test case", i, "got wrong argument: expected",
+				testCase.out, "got", arg.Name)
+			continue
+		}
+
+		if !p.Next() {
+			t.Error("test case", i, "got unexpected EOF")
+			continue
+		}
+		buf, err := p.Peek()
+		if err != nil {
+			t.Error("test case", i, "got error", err)
+			continue
+		}
+
+		if string(buf) != " and" {
+			t.Error("test case", i, "got wrong continuation", string(buf))
+		}
+	}
+}

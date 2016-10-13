@@ -44,6 +44,7 @@ func (conv *converter) addBuiltinMacros() {
 	conv.Macros["\\label"] = mIgnore // handled during pass 1
 	conv.Macros["\\ref"] = funcMacro(mRef)
 	conv.Macros["\\usepackage"] = funcMacro(mUsePackage)
+	conv.Macros["\\verb"] = funcMacro(mVerb)
 	for name, out := range map[string]string{
 		"\\textit": "i",
 		"\\textbf": "b",
@@ -86,6 +87,11 @@ func mRef(args []*tokenizer.Arg, conv *converter) string {
 		}
 	}
 	return `<span class="error">` + html.EscapeString(target) + `</span>`
+}
+
+func mVerb(args []*tokenizer.Arg, conv *converter) string {
+	body := args[0].String()
+	return `<span class="latex-verb">` + html.EscapeString(body) + `</span>`
 }
 
 func mUsePackage(args []*tokenizer.Arg, conv *converter) string {

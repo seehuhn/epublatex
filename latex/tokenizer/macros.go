@@ -104,6 +104,7 @@ func (p *Tokenizer) addBuiltinMacros() {
 	p.macros["\\usepackage"] = macroFunc(parseUsepackage)
 	p.macros["\\varepsilon"] = typedMacro("")
 	p.macros["\\varphi"] = typedMacro("")
+	p.macros["\\verb"] = macroFunc(parseVerb)
 	p.macros["\\xi"] = typedMacro("")
 	p.macros["\\zeta"] = typedMacro("")
 	p.macros["\\{"] = typedMacro("")
@@ -251,6 +252,34 @@ func parseHskip(p *Tokenizer, name string) (TokenList, error) {
 		Args: []*Arg{
 			&Arg{
 				Value: TokenList{verbatim(amount + unit)},
+			},
+		},
+	}
+	return TokenList{tok}, nil
+}
+
+func parseVerb(p *Tokenizer, name string) (TokenList, error) {
+	if !p.Next() {
+		return nil, io.EOF
+	}
+	buf, err := p.Peek()
+	if err != nil {
+		return nil, err
+	}
+	sep := buf[0]
+	p.Skip(1)
+	body, err := p.readUntil(sep)
+	if err != nil {
+		return nil, err
+	}
+
+	tok := &Token{
+		Type: TokenMacro,
+		Name: name,
+		Args: []*Arg{
+			&Arg{
+				Optional: false,
+				Value:    TokenList{verbatim(body)},
 			},
 		},
 	}
@@ -420,6 +449,36 @@ func (p *Tokenizer) readBalancedUntil(stopChar byte) (string, error) {
 				level--
 			} else if c == '\\' {
 				quoted = true
+			}
+		}
+		res = append(res, buf[:pos]...)
+		p.Skip(pos)
+
+		if done {
+			return string(res[:len(res)-1]), nil
+		}
+	}
+	return "", io.EOF
+}
+
+func (p *Tokenizer) readUntil(stopChar byte) (string, error) {
+	var res []byte
+	for p.Next() {
+		buf, err := p.Peek()
+		if err != nil {
+			return "", err
+		}
+
+		pos := 0
+		done := false
+		for pos < len(buf) {
+			c := buf[pos]
+			pos++
+			if c == stopChar {
+				done = true
+				break
+			} else if c == '\n' {
+				return "", p.MakeError("unexpected end of line")
 			}
 		}
 		res = append(res, buf[:pos]...)
