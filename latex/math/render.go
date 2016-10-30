@@ -133,20 +133,6 @@ func (r *Renderer) Finish() (res Images, err error) {
 				return nil, err
 			}
 		}
-		oldDir, err := os.Getwd()
-		if err != nil {
-			return nil, err
-		}
-		err = os.Chdir(workDir)
-		if err != nil {
-			return nil, err
-		}
-		defer func() {
-			e2 := os.Chdir(oldDir)
-			if err == nil {
-				err = e2
-			}
-		}()
 
 		texFileName := filepath.Join(workDir, "all.tex")
 		err = r.writeTexFile(texFileName, all)
@@ -154,7 +140,9 @@ func (r *Renderer) Finish() (res Images, err error) {
 			return nil, err
 		}
 
-		ltx := exec.Command("pdflatex", "-interaction=nonstopmode", texFileName)
+		ltx := exec.Command("pdflatex", "-interaction=nonstopmode",
+			texFileName)
+		ltx.Dir = workDir
 		output, err := ltx.Output()
 		if err != nil {
 			if e2, ok := err.(*exec.ExitError); ok {
@@ -168,9 +156,10 @@ func (r *Renderer) Finish() (res Images, err error) {
 
 		pdfFileName := filepath.Join(workDir, "all.pdf")
 		resolution := strconv.Itoa(renderRes)
-		gs := exec.Command("gs", "-dSAFER", "-dBATCH", "-dNOPAUSE", "-r"+resolution,
-			"-sDEVICE=pngalpha", "-dTextAlphaBits=4", "-sOutputFile="+imgNames,
-			pdfFileName)
+		gs := exec.Command("gs", "-dSAFER", "-dBATCH", "-dNOPAUSE",
+			"-r"+resolution, "-sDEVICE=pngalpha", "-dTextAlphaBits=4",
+			"-sOutputFile="+imgNames, pdfFileName)
+		gs.Dir = workDir
 		output, err = gs.Output()
 		if err != nil {
 			if e2, ok := err.(*exec.ExitError); ok {

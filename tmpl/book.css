@@ -36,7 +36,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 .dmath {
     display: block;
-    margin: 1ex auto;
+    margin: 3ex auto;
     padding: 0;
     height: auto;
 }

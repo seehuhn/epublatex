@@ -2,7 +2,11 @@ TODO
 ====
 
 * Use a TeX comment to set the document ID?
-* add an HTML output mode
+* add an XHTML output mode
 * automatically prune the math rendering cache from time to time
+* add support for tikz
+* should encoding/xml be used to generate META-INF/container.xml and
+  OEBPS/content.opf?
 
-* use some prefix ("epub-"?) for all auto-generated CSS?
+* use some prefix (epub? latex?) for all auto-generated CSS?
+* add beamer class support?
