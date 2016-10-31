@@ -24,6 +24,7 @@ import (
 	"image"
 	"image/draw"
 	"image/png"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -254,6 +255,21 @@ func (r *Renderer) writeTexFile(name string, all []*formulaInfo) (err error) {
 	})
 }
 
+type imageWriter func(io.Writer) error
+
+func (r *Renderer) addImage(name, mime string, fn imageWriter) (string, error) {
+	file := r.book.RegisterFile("m/"+name, mime, false)
+	w, err := r.book.CreateFile(file)
+	if err != nil {
+		return "", err
+	}
+	err = fn(w)
+	if err != nil {
+		return "", err
+	}
+	return file.Path, nil
+}
+
 func (r *Renderer) gatherImages(
 	res map[string]string, all []*formulaInfo, workDir string) error {
 	texIdx := 0
@@ -290,12 +306,8 @@ func (r *Renderer) gatherImages(
 			}
 		}
 
-		file := r.book.RegisterFile("m/"+info.FileName, "image/png", false)
-		w, err := r.book.CreateFile(file)
-		if err != nil {
-			return err
-		}
-		err = png.Encode(w, img)
+		fileName, err := r.addImage("m/"+info.FileName, "image/png",
+			func(w io.Writer) error { return png.Encode(w, img) })
 		if err != nil {
 			return err
 		}
@@ -303,7 +315,7 @@ func (r *Renderer) gatherImages(
 		exWidth := float64(img.Bounds().Dx()) / float64(renderRes) * 72.27 / xHeight
 		s := fmt.Sprintf(
 			`<img alt="%s" src="%s" class="%s" style="width: %.2fex"/>`,
-			html.EscapeString(info.Formula), html.EscapeString(file.Path),
+			html.EscapeString(info.Formula), html.EscapeString(fileName),
 			cssClass, exWidth)
 		res[info.Key] = s
 	}

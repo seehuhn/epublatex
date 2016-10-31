@@ -24,7 +24,7 @@ func (m Images) Get(env, formula string) string {
 	key := env + "%" + formula
 	res, ok := m[key]
 	if !ok {
-		log.Printf("missing maths %q", formula)
+		log.Printf("missing image for formula %q", formula)
 	}
 	return res
 }
