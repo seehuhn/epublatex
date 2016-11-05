@@ -26,6 +26,7 @@ import (
 )
 
 func main() {
+	log.Println("start")
 	flag.Parse()
 
 	if flag.NArg() != 1 {
@@ -56,4 +57,5 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	log.Println("done")
 }

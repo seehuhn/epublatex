@@ -25,10 +25,8 @@ import (
 	"image/draw"
 	"image/png"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -36,14 +34,15 @@ import (
 	"text/template"
 
 	"github.com/seehuhn/epublatex/epub"
+	"github.com/seehuhn/epublatex/latex/render"
 	"golang.org/x/crypto/sha3"
 )
 
 var cacheDir = flag.String("latex-math-cache", "",
 	"cache directory for maths rendering")
 
-var debugDir = flag.String("latex-math-debug", "",
-	"directory to store math rendering debugging information in")
+var noCache = flag.Bool("latex-math-no-cache", false,
+	"whether to disable the rendering cache")
 
 const (
 	renderRes = 3 * 96
@@ -66,7 +65,7 @@ func NewRenderer(book epub.Writer) (*Renderer, error) {
 	}
 
 	cacheDir := *cacheDir
-	if len(r.cacheDir) == 0 {
+	if len(cacheDir) == 0 {
 		cacheDir = os.Getenv("JV_EBOOK_CACHE")
 	}
 	if len(cacheDir) == 0 {
@@ -103,76 +102,36 @@ func (r *Renderer) Finish() (res Images, err error) {
 
 	all := r.getFormulaInfo()
 
-	var workDir string
 	needed := 0
 	for _, info := range all {
 		if info.Needed {
 			needed++
 		}
 	}
+	var c <-chan image.Image
 	if needed > 0 {
-		if *debugDir == "" {
-			workDir, err = ioutil.TempDir("", "epub")
-			if err != nil {
-				return nil, err
-			}
-			defer func() {
-				e2 := os.RemoveAll(workDir)
-				if err == nil {
-					err = e2
-				}
-			}()
-		} else {
-			workDir, err = filepath.Abs(*debugDir)
-			if err != nil {
-				return nil, err
-			}
-			log.Println("leaving math rendering debugging information in",
-				workDir)
-			err = os.MkdirAll(workDir, 0777)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		texFileName := filepath.Join(workDir, "all.tex")
-		err = r.writeTexFile(texFileName, all)
+		q, err := render.NewQueue(renderRes)
 		if err != nil {
 			return nil, err
 		}
-
-		ltx := exec.Command("pdflatex", "-interaction=nonstopmode",
-			texFileName)
-		ltx.Dir = workDir
-		output, err := ltx.Output()
-		if err != nil {
-			if e2, ok := err.(*exec.ExitError); ok {
-				log.Println("Rendering formulas using LaTeX failed:", e2)
-				log.Println("--- begin LaTeX output ---")
-				log.Println(string(output))
-				log.Println("--- end LaTeX output ---")
+		defer func() {
+			e2 := q.Finish()
+			if err == nil {
+				err = e2
 			}
+		}()
+
+		tmpl, err := template.New("tex").Parse(texTemplate)
+		if err != nil {
 			return nil, err
 		}
-
-		pdfFileName := filepath.Join(workDir, "all.pdf")
-		resolution := strconv.Itoa(renderRes)
-		gs := exec.Command("gs", "-dSAFER", "-dBATCH", "-dNOPAUSE",
-			"-r"+resolution, "-sDEVICE=pngalpha", "-dTextAlphaBits=4",
-			"-sOutputFile="+imgNames, pdfFileName)
-		gs.Dir = workDir
-		output, err = gs.Output()
-		if err != nil {
-			if e2, ok := err.(*exec.ExitError); ok {
-				log.Println("Converting formulas to .png using gs failed:", e2)
-				log.Println("--- begin gs output ---")
-				log.Println(string(output))
-				log.Println("--- end gs output ---")
-			}
-			return nil, err
+		data := map[string]interface{}{
+			"Preamble": r.preamble,
+			"Formulas": all,
 		}
+		c = q.Submit(tmpl, data)
 	}
-	err = r.gatherImages(res, all, workDir)
+	err = r.gatherImages(res, all, c)
 	if err != nil {
 		return nil, err
 	}
@@ -233,28 +192,6 @@ ${{.Formula}}$
 \end{document}
 `
 
-func (r *Renderer) writeTexFile(name string, all []*formulaInfo) (err error) {
-	texFile, err := os.Create(name)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		e1 := texFile.Close()
-		if err == nil {
-			err = e1
-		}
-	}()
-
-	tmpl, err := template.New("tex").Parse(texTemplate)
-	if err != nil {
-		return err
-	}
-	return tmpl.Execute(texFile, map[string]interface{}{
-		"Preamble": r.preamble,
-		"Formulas": all,
-	})
-}
-
 type imageWriter func(io.Writer) error
 
 func (r *Renderer) addImage(name, mime string, fn imageWriter) (string, error) {
@@ -271,8 +208,7 @@ func (r *Renderer) addImage(name, mime string, fn imageWriter) (string, error) {
 }
 
 func (r *Renderer) gatherImages(
-	res map[string]string, all []*formulaInfo, workDir string) error {
-	texIdx := 0
+	res map[string]string, all []*formulaInfo, c <-chan image.Image) error {
 	for _, info := range all {
 		var crop func(imgIn image.Image) image.Image
 		var cssClass string
@@ -287,12 +223,9 @@ func (r *Renderer) gatherImages(
 		var img image.Image
 		var err error
 		if info.Needed {
-			texIdx++
-			imageFileName := filepath.Join(workDir,
-				fmt.Sprintf(imgNames, texIdx))
-			img, err = readImage(imageFileName)
-			if err != nil {
-				return err
+			img = <-c
+			if img == nil {
+				log.Fatal("missing image")
 			}
 			img = crop(img)
 			err = r.writeCached(info.Key, img)
@@ -320,19 +253,6 @@ func (r *Renderer) gatherImages(
 		res[info.Key] = s
 	}
 	return nil
-}
-
-func readImage(fname string) (image.Image, error) {
-	fd, err := os.Open(fname)
-	if err != nil {
-		return nil, err
-	}
-	defer fd.Close()
-	img, _, err := image.Decode(fd)
-	if err != nil {
-		return nil, err
-	}
-	return img, nil
 }
 
 func cropInline(imgIn image.Image) image.Image {
@@ -473,7 +393,7 @@ func (r *Renderer) cacheFileName(key string) string {
 }
 
 func (r *Renderer) isCached(key string) bool {
-	if *debugDir != "" {
+	if *noCache {
 		return false
 	}
 	_, err := os.Stat(r.cacheFileName(key))
@@ -491,7 +411,16 @@ func (r *Renderer) writeCached(key string, img image.Image) error {
 }
 
 func (r *Renderer) loadCached(key string) (image.Image, error) {
-	return readImage(r.cacheFileName(key))
+	fd, err := os.Open(r.cacheFileName(key))
+	if err != nil {
+		return nil, err
+	}
+	defer fd.Close()
+	img, _, err := image.Decode(fd)
+	if err != nil {
+		return nil, err
+	}
+	return img, nil
 }
 
 type formulaInfo struct {
