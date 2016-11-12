@@ -3,7 +3,6 @@ TODO
 
 * Use a TeX comment to set the document ID?
 * add an XHTML output mode
-* automatically prune the math rendering cache from time to time
 * add support for tikz
 * should encoding/xml be used to generate META-INF/container.xml and
   OEBPS/content.opf?

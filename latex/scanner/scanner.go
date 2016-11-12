@@ -45,6 +45,8 @@ type Scanner struct {
 	ready   bool
 }
 
+// Close closes all input files and discards all buffers used by the
+// scanner.
 func (scan *Scanner) Close() (err error) {
 	for _, source := range scan.sources {
 		e2 := source.Fd.Close()

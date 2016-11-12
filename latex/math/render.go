@@ -17,7 +17,6 @@
 package math
 
 import (
-	"encoding/hex"
 	"flag"
 	"fmt"
 	"html"
@@ -26,28 +25,26 @@ import (
 	"image/png"
 	"io"
 	"log"
-	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"text/template"
 
 	"github.com/seehuhn/epublatex/epub"
+	"github.com/seehuhn/epublatex/latex/cache"
 	"github.com/seehuhn/epublatex/latex/render"
-	"golang.org/x/crypto/sha3"
 )
-
-var cacheDir = flag.String("latex-math-cache", "",
-	"cache directory for maths rendering")
 
 var noCache = flag.Bool("latex-math-no-cache", false,
 	"whether to disable the rendering cache")
 
 const (
 	renderRes = 3 * 96
-	imgNames  = "img%d.png"
 	xHeight   = 4.30554 // x-height of cmi10 in TeX pt
+
+	imgNames = "img%d.png"
+
+	mathCachePruneLimit = 256 * 1024
 )
 
 type Renderer struct {
@@ -55,7 +52,7 @@ type Renderer struct {
 	preamble []string
 	formulas map[string]int
 
-	cacheDir string
+	cache *cache.Cache
 }
 
 func NewRenderer(book epub.Writer) (*Renderer, error) {
@@ -64,17 +61,8 @@ func NewRenderer(book epub.Writer) (*Renderer, error) {
 		formulas: make(map[string]int),
 	}
 
-	cacheDir := *cacheDir
-	if len(cacheDir) == 0 {
-		cacheDir = os.Getenv("JV_EBOOK_CACHE")
-	}
-	if len(cacheDir) == 0 {
-		cacheDir = os.ExpandEnv(defaultCacheDir)
-		cacheDir = filepath.Join(cacheDir, "de.seehuhn.ebook")
-	}
-
-	r.cacheDir = filepath.Join(cacheDir, "maths")
-	err := os.MkdirAll(r.cacheDir, 0755)
+	var err error
+	r.cache, err = cache.NewCache("maths")
 	if err != nil {
 		return nil, err
 	}
@@ -136,6 +124,8 @@ func (r *Renderer) Finish() (res Images, err error) {
 		return nil, err
 	}
 
+	err = r.cache.Close(mathCachePruneLimit)
+
 	return res, nil
 }
 
@@ -148,7 +138,7 @@ func (r *Renderer) getFormulaInfo() []*formulaInfo {
 			Env:     parts[0],
 			Formula: parts[1],
 			Count:   count,
-			Needed:  !r.isCached(key),
+			Needed:  *noCache || !r.cache.Has(key),
 		}
 		all = append(all, info)
 	}
@@ -228,12 +218,12 @@ func (r *Renderer) gatherImages(
 				log.Fatal("missing image")
 			}
 			img = crop(img)
-			err = r.writeCached(info.Key, img)
+			err = r.cache.Put(info.Key, img)
 			if err != nil {
 				return err
 			}
 		} else {
-			img, err = r.loadCached(info.Key)
+			img, err = r.cache.Get(info.Key)
 			if err != nil {
 				return err
 			}
@@ -381,46 +371,6 @@ leftRightLoop:
 		Max: image.Point{xMax, yMax},
 	}
 	return imgOut.SubImage(crop)
-}
-
-func (r *Renderer) cacheFileName(key string) string {
-	h := sha3.NewShake128()
-	h.Write([]byte(strconv.Itoa(renderRes) + "%" + key))
-	buf := make([]byte, 16)
-	h.Read(buf)
-	fileName := hex.EncodeToString(buf) + ".png"
-	return filepath.Join(r.cacheDir, fileName)
-}
-
-func (r *Renderer) isCached(key string) bool {
-	if *noCache {
-		return false
-	}
-	_, err := os.Stat(r.cacheFileName(key))
-	return err == nil
-}
-
-func (r *Renderer) writeCached(key string, img image.Image) error {
-	fd, err := os.Create(r.cacheFileName(key))
-	if err != nil {
-		return err
-	}
-	defer fd.Close()
-
-	return png.Encode(fd, img)
-}
-
-func (r *Renderer) loadCached(key string) (image.Image, error) {
-	fd, err := os.Open(r.cacheFileName(key))
-	if err != nil {
-		return nil, err
-	}
-	defer fd.Close()
-	img, _, err := image.Decode(fd)
-	if err != nil {
-		return nil, err
-	}
-	return img, nil
 }
 
 type formulaInfo struct {

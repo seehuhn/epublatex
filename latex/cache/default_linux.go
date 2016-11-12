@@ -1,4 +1,4 @@
-// cache_darwin.go -
+// default_linux.go -
 // Copyright (C) 2016  Jochen Voss <voss@seehuhn.de>
 //
 // This program is free software: you can redistribute it and/or modify
@@ -14,6 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package math
+package cache
 
-const defaultCacheDir = "$HOME/Library/Caches"
+const defaultCacheDir = "$HOME/.cache"

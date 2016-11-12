@@ -1,4 +1,4 @@
-// pass1.go -
+// pass1.go - render formulas/images, extract cross references
 // Copyright (C) 2016  Jochen Voss <voss@seehuhn.de>
 //
 // This program is free software: you can redistribute it and/or modify
@@ -31,7 +31,8 @@ import (
 // environment was not found.
 var ErrUnterminatedMath = errors.New("maths environment not terminated")
 
-// Pass1 renders all formulas as images and extracts the cross-references.
+// Pass1 renders all formulas and tikz images, and extracts the
+// cross-references.
 func (conv *converter) Pass1() error {
 	var labels []*xRef
 	ref := -1
@@ -141,7 +142,7 @@ func (conv *converter) Pass1() error {
 				m, ok := conv.Macros[token.Name]
 				if ok {
 					// run for side-effects only, discard output
-					m.HTMLOutput(token.Args, conv)
+					_ = m.HTMLOutput(token.Args, conv)
 				}
 			}
 		}
