@@ -24,6 +24,7 @@ import (
 	"os"
 
 	"github.com/seehuhn/epublatex/latex/math"
+	"github.com/seehuhn/epublatex/latex/render"
 	"github.com/seehuhn/epublatex/latex/tokenizer"
 )
 
@@ -34,6 +35,11 @@ var ErrUnterminatedMath = errors.New("maths environment not terminated")
 // Pass1 renders all formulas and tikz images, and extracts the
 // cross-references.
 func (conv *converter) Pass1() error {
+	conv.Images = make(map[string]string)
+	imageChan := make(chan *render.BookImage)
+	resChan := make(chan error)
+	go conv.imageAdder(imageChan, resChan)
+
 	var labels []*xRef
 	ref := -1
 	refType := ""
@@ -151,11 +157,17 @@ func (conv *converter) Pass1() error {
 		pos++
 	}
 
-	images, err := renderer.Finish()
+	err = renderer.Finish(imageChan)
+	close(imageChan)
 	if err != nil {
 		return err
 	}
-	conv.Images = images
+
+	err = <-resChan
+	if err != nil {
+		return err
+	}
+
 	conv.Labels = labels
 	return nil
 }

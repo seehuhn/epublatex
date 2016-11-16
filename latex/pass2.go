@@ -38,7 +38,7 @@ func (conv *converter) convertHTML(tokens tokenizer.TokenList) string {
 		case token.Type == tokenizer.TokenOther && token.Name == "$" && inMath:
 			inMath = false
 			body := mathTokens.FormatMaths()
-			res = append(res, conv.Images.Get("$", body))
+			res = append(res, conv.GetImage("$", body))
 			mathTokens = nil
 		case inMath:
 			mathTokens = append(mathTokens, token)
@@ -123,7 +123,7 @@ func (conv *converter) Pass2() (err error) {
 					w.WriteString(`<span class="latex-eqno" id="` + id +
 						`">(` + name + `)</span>`)
 				}
-				w.WriteString(conv.Images.Get(mathEnv, mathTokens.FormatMaths()))
+				w.WriteString(conv.GetImage(mathEnv, mathTokens.FormatMaths()))
 
 				mathMode = nil
 				mathTokens = nil

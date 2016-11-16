@@ -22,7 +22,6 @@ import (
 	"os"
 
 	"github.com/seehuhn/epublatex/epub"
-	"github.com/seehuhn/epublatex/latex/math"
 )
 
 type converter struct {
@@ -32,7 +31,7 @@ type converter struct {
 	WorkDir       string
 	TokenFileName string
 
-	Images math.Images
+	Images map[string]string
 	Labels []*xRef
 
 	Section  epub.SecNo

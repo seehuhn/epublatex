@@ -22,8 +22,6 @@ import (
 	"html"
 	"image"
 	"image/draw"
-	"image/png"
-	"io"
 	"log"
 	"sort"
 	"strconv"
@@ -82,10 +80,9 @@ func (r *Renderer) AddFormula(env, formula string) {
 	r.formulas[key]++
 }
 
-func (r *Renderer) Finish() (res Images, err error) {
-	res = make(Images)
+func (r *Renderer) Finish(out chan<- *render.BookImage) error {
 	if len(r.formulas) == 0 {
-		return res, nil
+		return nil
 	}
 
 	all := r.getFormulaInfo()
@@ -100,7 +97,7 @@ func (r *Renderer) Finish() (res Images, err error) {
 	if needed > 0 {
 		q, err := render.NewQueue(renderRes)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		defer func() {
 			e2 := q.Finish()
@@ -111,7 +108,7 @@ func (r *Renderer) Finish() (res Images, err error) {
 
 		tmpl, err := template.New("tex").Parse(texTemplate)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		data := map[string]interface{}{
 			"Preamble": r.preamble,
@@ -119,14 +116,13 @@ func (r *Renderer) Finish() (res Images, err error) {
 		}
 		c = q.Submit(tmpl, data)
 	}
-	err = r.gatherImages(res, all, c)
+
+	err := r.gatherImages(all, c, out)
 	if err != nil {
-		return nil, err
+		return err
 	}
-
 	err = r.cache.Close(mathCachePruneLimit)
-
-	return res, nil
+	return err
 }
 
 func (r *Renderer) getFormulaInfo() []*formulaInfo {
@@ -182,23 +178,8 @@ ${{.Formula}}$
 \end{document}
 `
 
-type imageWriter func(io.Writer) error
-
-func (r *Renderer) addImage(name, mime string, fn imageWriter) (string, error) {
-	file := r.book.RegisterFile("m/"+name, mime, false)
-	w, err := r.book.CreateFile(file)
-	if err != nil {
-		return "", err
-	}
-	err = fn(w)
-	if err != nil {
-		return "", err
-	}
-	return file.Path, nil
-}
-
-func (r *Renderer) gatherImages(
-	res map[string]string, all []*formulaInfo, c <-chan image.Image) error {
+func (r *Renderer) gatherImages(all []*formulaInfo, in <-chan image.Image,
+	out chan<- *render.BookImage) error {
 	for _, info := range all {
 		var crop func(imgIn image.Image) image.Image
 		var cssClass string
@@ -213,7 +194,7 @@ func (r *Renderer) gatherImages(
 		var img image.Image
 		var err error
 		if info.Needed {
-			img = <-c
+			img = <-in
 			if img == nil {
 				log.Fatal("missing image")
 			}
@@ -229,18 +210,19 @@ func (r *Renderer) gatherImages(
 			}
 		}
 
-		fileName, err := r.addImage("m/"+info.FileName, "image/png",
-			func(w io.Writer) error { return png.Encode(w, img) })
-		if err != nil {
-			return err
-		}
-
 		exWidth := float64(img.Bounds().Dx()) / float64(renderRes) * 72.27 / xHeight
-		s := fmt.Sprintf(
-			`<img alt="%s" src="%s" class="%s" style="width: %.2fex"/>`,
-			html.EscapeString(info.Formula), html.EscapeString(fileName),
-			cssClass, exWidth)
-		res[info.Key] = s
+		attr := fmt.Sprintf(` alt="%s" class="%s" style="width: %.2fex"`,
+			html.EscapeString(info.Formula), cssClass, exWidth)
+
+		job := &render.BookImage{
+			Key:       info.Key,
+			Image:     img,
+			ImageAttr: attr,
+			Name:      info.FileName,
+			Folder:    "m",
+			Type:      render.BookImageTypePNG,
+		}
+		out <- job
 	}
 	return nil
 }
