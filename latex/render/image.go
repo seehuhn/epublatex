@@ -10,10 +10,13 @@ const (
 )
 
 type BookImage struct {
-	Key       string
-	Image     image.Image
-	ImageAttr string
-	Name      string
-	Folder    string
-	Type      BookImageType
+	Env  string
+	Body string
+
+	Alt      string
+	CssClass string
+	Style    string
+
+	Image image.Image
+	Type  BookImageType
 }

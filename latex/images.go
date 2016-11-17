@@ -17,13 +17,16 @@
 package latex
 
 import (
-	"fmt"
+	"encoding/base64"
 	"html"
 	"image"
 	"image/jpeg"
 	"image/png"
 	"io"
 	"log"
+	"strings"
+
+	"golang.org/x/crypto/sha3"
 
 	"github.com/seehuhn/epublatex/latex/render"
 )
@@ -54,11 +57,16 @@ func (conv *converter) imageAdder(in <-chan *render.BookImage, res chan<- error)
 			}
 		}
 
-		name := job.Name
-		if job.Folder != "" {
-			name = job.Folder + "/" + name
-		}
-		file := conv.Book.RegisterFile(name, mime, false)
+		// try to make a stable name
+		h := sha3.NewShake128()
+		h.Write([]byte(job.Env))
+		h.Write([]byte{0})
+		h.Write([]byte(job.Body))
+		buf := make([]byte, 5)
+		h.Read(buf)
+		rawName := base64.RawURLEncoding.EncodeToString(buf)
+
+		file := conv.Book.RegisterFile(rawName, mime, false)
 		w, err := conv.Book.CreateFile(file)
 		if err != nil {
 			if firstError == nil {
@@ -74,9 +82,23 @@ func (conv *converter) imageAdder(in <-chan *render.BookImage, res chan<- error)
 			continue
 		}
 
-		s := fmt.Sprintf(`<img src="%s"%s/>`,
-			html.EscapeString(file.Path), job.ImageAttr)
-		conv.Images[job.Key] = s
+		attrs := []string{
+			` src="` + html.EscapeString(file.Path) + `"`,
+		}
+		if job.CssClass != "" {
+			attrs = append(attrs,
+				` class="`+html.EscapeString(job.CssClass)+`"`)
+		}
+		if job.Alt != "" {
+			attrs = append(attrs,
+				` alt="`+html.EscapeString(job.Alt)+`"`)
+		}
+		if job.Style != "" {
+			attrs = append(attrs,
+				` style="`+job.Style+`"`)
+		}
+		key := job.Env + "%" + job.Body
+		conv.Images[key] = `<img` + strings.Join(attrs, "") + `/>`
 	}
 	res <- firstError
 }

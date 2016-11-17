@@ -45,7 +45,7 @@ func (conv *converter) Pass1() error {
 	refType := ""
 	refName := ""
 
-	renderer, err := math.NewRenderer(conv.Book)
+	renderer, err := math.NewRenderer(imageChan)
 	if err != nil {
 		return err
 	}
@@ -157,7 +157,7 @@ func (conv *converter) Pass1() error {
 		pos++
 	}
 
-	err = renderer.Finish(imageChan)
+	err = renderer.Finish()
 	close(imageChan)
 	if err != nil {
 		return err

@@ -19,16 +19,12 @@ package math
 import (
 	"flag"
 	"fmt"
-	"html"
 	"image"
-	"image/draw"
 	"log"
-	"sort"
-	"strconv"
 	"strings"
+	"sync"
 	"text/template"
 
-	"github.com/seehuhn/epublatex/epub"
 	"github.com/seehuhn/epublatex/latex/cache"
 	"github.com/seehuhn/epublatex/latex/render"
 )
@@ -37,35 +33,72 @@ var noCache = flag.Bool("latex-math-no-cache", false,
 	"whether to disable the rendering cache")
 
 const (
-	renderRes = 3 * 96
-	xHeight   = 4.30554 // x-height of cmi10 in TeX pt
+	renderRes = 3 * 96  // render resolution [pixels / inch]
+	exHeight  = 4.30554 // x-height of cmi10 [TeX pt / ex]
+	exPerPix  = 72.27 / exHeight / float64(renderRes)
 
 	imgNames = "img%d.png"
 
+	batchSize           = 10
 	mathCachePruneLimit = 256 * 1024
 )
 
 type Renderer struct {
-	book     epub.Writer
-	preamble []string
-	formulas map[string]int
+	out chan<- *render.BookImage
 
-	cache *cache.Cache
+	preamble []string
+	seen     map[string]bool
+	cache    *cache.Cache
+
+	batch    []*formulaInfo
+	queue    *render.Queue
+	children *sync.WaitGroup
+
+	tmpl *template.Template
 }
 
-func NewRenderer(book epub.Writer) (*Renderer, error) {
+func NewRenderer(out chan<- *render.BookImage) (*Renderer, error) {
 	r := &Renderer{
-		book:     book,
-		formulas: make(map[string]int),
+		out:      out,
+		seen:     make(map[string]bool),
+		children: &sync.WaitGroup{},
 	}
 
-	var err error
-	r.cache, err = cache.NewCache("maths")
+	queue, err := render.NewQueue(renderRes)
 	if err != nil {
 		return nil, err
 	}
+	r.queue = queue
+
+	cache, err := cache.NewCache("maths")
+	if err != nil {
+		return nil, err
+	}
+	r.cache = cache
+
+	tmpl, err := template.New("tex").Parse(texTemplate)
+	if err != nil {
+		return nil, err
+	}
+	r.tmpl = tmpl
 
 	return r, nil
+}
+
+func (r *Renderer) Finish() error {
+	if len(r.batch) > 0 {
+		r.runBatch()
+	}
+	r.children.Wait()
+
+	err := r.queue.Finish()
+
+	e2 := r.cache.Close(mathCachePruneLimit)
+	if err == nil {
+		err = e2
+	}
+
+	return err
 }
 
 func (r *Renderer) AddPreamble(line string) {
@@ -76,73 +109,108 @@ func (r *Renderer) AddFormula(env, formula string) {
 	if strings.Contains(env, "%") {
 		panic("invalid math environment " + env)
 	}
-	key := env + "%" + formula
-	r.formulas[key]++
+	key := r.makeKey(env, formula)
+	if r.seen[key] {
+		// avoid including the same image twice
+		return
+	}
+	r.seen[key] = true
+
+	info := &formulaInfo{
+		key:     key,
+		Env:     env,
+		Formula: formula,
+	}
+
+	if !*noCache && r.cache.Has(key) {
+		img, err := r.cache.Get(key)
+		if err != nil {
+			log.Println("cache failure:", err)
+			goto render
+		}
+		r.submit(info, img)
+		return
+	}
+
+render:
+	r.batch = append(r.batch, info)
+	if len(r.batch) >= batchSize {
+		r.runBatch()
+	}
 }
 
-func (r *Renderer) Finish(out chan<- *render.BookImage) error {
-	if len(r.formulas) == 0 {
-		return nil
-	}
+func (r *Renderer) runBatch() {
+	all := r.batch
+	r.batch = nil
 
-	all := r.getFormulaInfo()
-
-	needed := 0
-	for _, info := range all {
-		if info.Needed {
-			needed++
-		}
+	data := map[string]interface{}{
+		"Preamble": r.preamble,
+		"Formulas": all,
 	}
-	var c <-chan image.Image
-	if needed > 0 {
-		q, err := render.NewQueue(renderRes)
-		if err != nil {
-			return err
-		}
-		defer func() {
-			e2 := q.Finish()
-			if err == nil {
-				err = e2
+	in := r.queue.Submit(r.tmpl, data)
+
+	r.children.Add(1)
+	go func() {
+		for _, info := range all {
+			img := <-in
+			if img == nil {
+				log.Println("missing image", info.Env, info.Formula)
+				continue
 			}
-		}()
+			if info.Env == "$" {
+				img = cropInline(img)
+			} else {
+				img = cropDisplayed(img)
+			}
 
-		tmpl, err := template.New("tex").Parse(texTemplate)
-		if err != nil {
-			return err
+			r.cache.Put(info.key, img)
+			r.submit(info, img)
 		}
-		data := map[string]interface{}{
-			"Preamble": r.preamble,
-			"Formulas": all,
-		}
-		c = q.Submit(tmpl, data)
-	}
+		r.children.Done()
 
-	err := r.gatherImages(all, c, out)
-	if err != nil {
-		return err
-	}
-	err = r.cache.Close(mathCachePruneLimit)
-	return err
+		for range in {
+			log.Println("error: unexpected image received from renderer")
+		}
+	}()
 }
 
-func (r *Renderer) getFormulaInfo() []*formulaInfo {
-	var all []*formulaInfo
-	for key, count := range r.formulas {
-		parts := strings.SplitN(key, "%", 2)
-		info := &formulaInfo{
-			Key:     key,
-			Env:     parts[0],
-			Formula: parts[1],
-			Count:   count,
-			Needed:  *noCache || !r.cache.Has(key),
-		}
-		all = append(all, info)
+func (r *Renderer) submit(info *formulaInfo, img image.Image) {
+	alt := "[formula]"
+	if len(info.Formula) <= 60 {
+		alt = info.Formula
 	}
-	sort.Sort(decreasingCount(all))
-	for i, info := range all {
-		info.FileName = strconv.Itoa(i)
+	var cssClass string
+	if info.Env == "$" {
+		cssClass = "imath"
+	} else {
+		cssClass = "dmath"
 	}
-	return all
+	exWidth := float64(img.Bounds().Dx()) * exPerPix
+	style := fmt.Sprintf("width: %.2fex", exWidth)
+	job := &render.BookImage{
+		Env:  info.Env,
+		Body: info.Formula,
+
+		Alt:      alt,
+		CssClass: cssClass,
+		Style:    style,
+
+		Image: img,
+		Type:  render.BookImageTypePNG,
+	}
+	r.out <- job
+}
+
+func (r *Renderer) makeKey(env, formula string) string {
+	// TODO(voss): should the preamble affect the key?
+	// TODO(voss): would hashing be beneficial?
+	return fmt.Sprintf("%d%%%f%%%s%%%s", renderRes, exHeight, env, formula)
+}
+
+type formulaInfo struct {
+	key     string
+	Env     string
+	Formula string
 }
 
 const texTemplate = `\documentclass{minimal}
@@ -162,7 +230,6 @@ const texTemplate = `\documentclass{minimal}
 \fontsize{10}{12}\selectfont
 
 {{range .Formulas -}}
-{{if .Needed -}}
 {{if eq .Env "$" -}}
 \vrule width6bp height4.3pt depth0pt \kern6bp
 ${{.Formula}}$
@@ -174,208 +241,5 @@ ${{.Formula}}$
 \newpage
 
 {{end -}}
-{{end -}}
 \end{document}
 `
-
-func (r *Renderer) gatherImages(all []*formulaInfo, in <-chan image.Image,
-	out chan<- *render.BookImage) error {
-	for _, info := range all {
-		var crop func(imgIn image.Image) image.Image
-		var cssClass string
-		if info.Env == "$" {
-			crop = cropInline
-			cssClass = "imath"
-		} else {
-			crop = cropDisplayed
-			cssClass = "dmath"
-		}
-
-		var img image.Image
-		var err error
-		if info.Needed {
-			img = <-in
-			if img == nil {
-				log.Fatal("missing image")
-			}
-			img = crop(img)
-			err = r.cache.Put(info.Key, img)
-			if err != nil {
-				return err
-			}
-		} else {
-			img, err = r.cache.Get(info.Key)
-			if err != nil {
-				return err
-			}
-		}
-
-		exWidth := float64(img.Bounds().Dx()) / float64(renderRes) * 72.27 / xHeight
-		attr := fmt.Sprintf(` alt="%s" class="%s" style="width: %.2fex"`,
-			html.EscapeString(info.Formula), cssClass, exWidth)
-
-		job := &render.BookImage{
-			Key:       info.Key,
-			Image:     img,
-			ImageAttr: attr,
-			Name:      info.FileName,
-			Folder:    "m",
-			Type:      render.BookImageTypePNG,
-		}
-		out <- job
-	}
-	return nil
-}
-
-func cropInline(imgIn image.Image) image.Image {
-	b := imgIn.Bounds()
-	imgOut := image.NewNRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
-	draw.Draw(imgOut, imgOut.Bounds(), imgIn, b.Min, draw.Src)
-
-	// find the marker on the left
-	y0 := 0
-	for {
-		if imgOut.Pix[y0*imgOut.Stride+3] != 0 {
-			break
-		}
-		y0++
-	}
-	y1 := y0
-	for {
-		if imgOut.Pix[(y1+1)*imgOut.Stride+3] == 0 {
-			break
-		}
-		y1++
-	}
-	yMid := (y0 + y1) / 2
-
-	// find the width of the marker
-	xMin := 0
-	for imgOut.Pix[imgOut.PixOffset(xMin, yMid)+3] != 0 {
-		xMin++
-	}
-
-	// find the top-most row of pixels used
-	idx := 0
-	for imgOut.Pix[idx+3] == 0 {
-		idx += 4
-	}
-	yMin := idx / imgOut.Stride
-
-	// find the bottom-most row of pixels used
-	idx = imgOut.Rect.Max.Y*imgOut.Stride - 4
-	for imgOut.Pix[idx+3] == 0 {
-		idx -= 4
-	}
-	yMax := idx/imgOut.Stride + 1
-
-	// Centre the crop window vertically.
-	if y0-yMin > yMax-1-y1 {
-		yMax = y0 + y1 - yMin + 1
-	} else {
-		yMin = y0 + y1 - yMax + 1
-	}
-
-	// crop left
-leftLoop:
-	for xMin < imgOut.Rect.Max.X {
-		for y := yMin; y < yMax; y++ {
-			idx := imgOut.PixOffset(xMin, y)
-			if imgOut.Pix[idx+3] != 0 {
-				break leftLoop
-			}
-		}
-		xMin++
-	}
-
-	// crop right
-	xMax := imgOut.Rect.Max.X
-rightLoop:
-	for xMax > xMin {
-		for y := yMin; y < yMax; y++ {
-			idx := imgOut.PixOffset(xMax-1, y)
-			if imgOut.Pix[idx+3] != 0 {
-				break rightLoop
-			}
-		}
-		xMax--
-	}
-
-	crop := image.Rectangle{
-		Min: image.Point{xMin, yMin},
-		Max: image.Point{xMax, yMax},
-	}
-	return imgOut.SubImage(crop)
-}
-
-func cropDisplayed(imgIn image.Image) image.Image {
-	b := imgIn.Bounds()
-	imgOut := image.NewNRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
-	draw.Draw(imgOut, imgOut.Bounds(), imgIn, b.Min, draw.Src)
-
-	// find the top-most row of pixels used
-	idx := 0
-	for imgOut.Pix[idx+3] == 0 {
-		idx += 4
-	}
-	yMin := idx / imgOut.Stride
-
-	// find the bottom-most row of pixels used
-	idx = imgOut.Rect.Max.Y*imgOut.Stride - 4
-	for imgOut.Pix[idx+3] == 0 {
-		idx -= 4
-	}
-	yMax := idx/imgOut.Stride + 1
-
-	// crop left and right
-	xMin := 0
-	xMax := imgOut.Rect.Max.X
-leftRightLoop:
-	for xMin < imgOut.Rect.Max.X {
-		for y := yMin; y < yMax; y++ {
-			idx := imgOut.PixOffset(xMin, y)
-			if imgOut.Pix[idx+3] != 0 {
-				break leftRightLoop
-			}
-		}
-		for y := yMin; y < yMax; y++ {
-			idx := imgOut.PixOffset(xMax-1, y)
-			if imgOut.Pix[idx+3] != 0 {
-				break leftRightLoop
-			}
-		}
-		xMin++
-		xMax--
-	}
-
-	crop := image.Rectangle{
-		Min: image.Point{xMin, yMin},
-		Max: image.Point{xMax, yMax},
-	}
-	return imgOut.SubImage(crop)
-}
-
-type formulaInfo struct {
-	Key string
-
-	Env     string
-	Formula string
-	Count   int
-
-	Needed   bool
-	FileName string
-}
-
-type decreasingCount []*formulaInfo
-
-func (dc decreasingCount) Len() int      { return len(dc) }
-func (dc decreasingCount) Swap(i, j int) { dc[i], dc[j] = dc[j], dc[i] }
-func (dc decreasingCount) Less(i, j int) bool {
-	if dc[i].Count != dc[j].Count {
-		return dc[i].Count > dc[j].Count
-	}
-	if dc[i].Formula != dc[j].Formula {
-		return dc[i].Formula < dc[j].Formula
-	}
-	return dc[i].Env < dc[j].Env
-}
