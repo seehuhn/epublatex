@@ -36,17 +36,10 @@ import (
 const (
 	baseNameSpaceURL = "http://ebook.seehuhn.de/"
 
-	mimeType      = "application/epub+zip"
-	containerName = "META-INF/container.xml"
-	contentDir    = "OEBPS/"
-	contentName   = "content"
-	contentExt    = ".opf"
-	cssName       = "book"
-	navName       = "nav"
-	coverName     = "cover"
-	titleName     = "title"
-
-	templateConfig = "config/epub"
+	cssName   = "book"
+	navName   = "nav"
+	coverName = "cover"
+	titleName = "title"
 )
 
 var DefaultTemplateDir = flag.String("epub-templates", "tmpl",
@@ -99,21 +92,20 @@ type book struct {
 	SectionLevel  int
 
 	open        bool
-	zip         *zip.Writer
 	nextID      int
-	current     io.Writer
+	current     io.WriteCloser
 	currentPath string
 	tmplDir     string
+
+	driver driver
 }
 
 type Settings struct {
 	TemplateDir string
 }
 
-func NewWriter(out io.Writer, identifier string, settings *Settings) (
+func NewEpubWriter(out io.Writer, identifier string, settings *Settings) (
 	Writer, error) {
-	nameSpace := uuid.NewSHA1(uuid.NameSpaceURL, []byte(baseNameSpaceURL))
-
 	zipFile := zip.NewWriter(out)
 	zipFile.RegisterCompressor(zip.Deflate,
 		func(out io.Writer) (io.WriteCloser, error) {
@@ -130,16 +122,34 @@ func NewWriter(out io.Writer, identifier string, settings *Settings) (
 	if err != nil {
 		return nil, err
 	}
-	_, err = part.Write([]byte(mimeType))
+	_, err = part.Write([]byte(epubMimeType))
 	if err != nil {
 		return nil, err
 	}
+
+	driver := &epubDriver{
+		ZipFile: zipFile,
+	}
+	return newWriter(driver, identifier, settings)
+}
+
+func NewXhtmlWriter(baseDir string, identifier string, settings *Settings) (
+	Writer, error) {
+	driver := &xhtmlDriver{
+		BaseDir: baseDir,
+	}
+	return newWriter(driver, identifier, settings)
+}
+
+func newWriter(driver driver, identifier string, settings *Settings) (
+	Writer, error) {
+	nameSpace := uuid.NewSHA1(uuid.NameSpaceURL, []byte(baseNameSpaceURL))
 
 	tmplDir := *DefaultTemplateDir
 	if settings != nil && settings.TemplateDir != "" {
 		tmplDir = settings.TemplateDir
 	}
-	tmplDir, err = filepath.Abs(tmplDir)
+	tmplDir, err := filepath.Abs(tmplDir)
 	if err != nil {
 		return nil, err
 	}
@@ -150,10 +160,11 @@ func NewWriter(out io.Writer, identifier string, settings *Settings) (
 		Language:     "en-GB",
 
 		open:  true,
-		zip:   zipFile,
 		Files: make(map[string]*File),
 
 		tmplDir: tmplDir,
+
+		driver: driver,
 	}
 
 	nav := w.RegisterFile(navName, "application/xhtml+xml", false)
@@ -179,31 +190,24 @@ func (w *book) Flush() error {
 		w.Nav[k].down = w.Nav[k].Level
 	}
 
-	w.ContentName = contentDir + w.uniqueName(contentName, contentExt)
-
 	files := []struct {
 		path      string
 		templates []string
 	}{
-		{contentDir + w.Files[w.CSSPath].Path,
+		{w.driver.MakePath(w.Files[w.CSSPath].Path),
 			[]string{"book.css"}},
-		{contentDir + w.Files[w.NavPath].Path,
-			[]string{"nav.xhtml", templateConfig}},
-		{w.ContentName,
-			[]string{"content.opf"}},
-		{containerName,
-			[]string{"container.xml"}},
+		{w.driver.MakePath(w.Files[w.NavPath].Path),
+			[]string{"nav.xhtml", w.driver.Config()}},
 	}
 	for _, file := range files {
-		err := w.addFileFromTemplate(file.path, file.templates, nil)
+		err = w.addFileFromTemplate(file.path, file.templates, nil)
 		if err != nil {
 			return err
 		}
 	}
 
-	w.zip.Close()
 	w.open = false
-	return nil
+	return w.driver.Close(w)
 }
 
 func (w *book) RegisterFile(baseName, mimeType string, inSpine bool) *File {
@@ -246,7 +250,7 @@ func (w *book) createFile(path string) error {
 			return err
 		}
 	}
-	out, err := w.zip.Create(path)
+	out, err := w.driver.Create(path)
 	if err != nil {
 		return err
 	}
@@ -255,8 +259,9 @@ func (w *book) createFile(path string) error {
 }
 
 func (w *book) closeFile() error {
+	err := w.current.Close()
 	w.current = nil
-	return nil
+	return err
 }
 
 func (w *book) CreateFile(file *File) (io.Writer, error) {
@@ -268,7 +273,7 @@ func (w *book) CreateFile(file *File) (io.Writer, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = w.createFile(contentDir + file.Path)
+	err = w.createFile(w.driver.MakePath(file.Path))
 	if err != nil {
 		return nil, err
 	}
@@ -306,8 +311,8 @@ func (w *book) AddCoverImage(r io.Reader) error {
 	w.CoverImageID = coverImage.ID
 
 	cover := w.RegisterFile(coverName, "application/xhtml+xml", true)
-	err = w.addFileFromTemplate(contentDir+cover.Path,
-		[]string{"cover.xhtml", templateConfig},
+	err = w.addFileFromTemplate(w.driver.MakePath(cover.Path),
+		[]string{"cover.xhtml", w.driver.Config()},
 		map[string]string{
 			"CoverImage": coverImage.Path,
 		})
@@ -327,8 +332,8 @@ func (w *book) AddTitle(title string, authors []string) error {
 	w.Title = title
 	w.Authors = authors
 	file := w.RegisterFile(titleName, "application/xhtml+xml", true)
-	err := w.addFileFromTemplate(contentDir+file.Path,
-		[]string{"title.xhtml", templateConfig}, nil)
+	err := w.addFileFromTemplate(w.driver.MakePath(file.Path),
+		[]string{"title.xhtml", w.driver.Config()}, nil)
 	if err != nil {
 		return err
 	}
@@ -343,7 +348,7 @@ func (w *book) closeSections(level int) error {
 
 	for w.SectionLevel > level {
 		err := w.writeTemplates(
-			[]string{"section-tail.xhtml", templateConfig},
+			[]string{"section-tail.xhtml", w.driver.Config()},
 			nil)
 		if err != nil {
 			return err
@@ -353,7 +358,7 @@ func (w *book) closeSections(level int) error {
 
 	if w.SectionLevel <= 0 {
 		err := w.writeTemplates(
-			[]string{"chapter-tail.xhtml", templateConfig},
+			[]string{"chapter-tail.xhtml", w.driver.Config()},
 			nil)
 		if err != nil {
 			return err
@@ -384,13 +389,13 @@ func (w *book) AddSection(level int, title string, secID string) error {
 		name := fmt.Sprintf("ch%s", w.SectionNumber)
 		file := w.RegisterFile(name, "application/xhtml+xml", true)
 
-		err := w.createFile(contentDir + file.Path)
+		err := w.createFile(w.driver.MakePath(file.Path))
 		if err != nil {
 			return err
 		}
 		w.currentPath = file.Path
 		err = w.writeTemplates(
-			[]string{"chapter-head.xhtml", templateConfig},
+			[]string{"chapter-head.xhtml", w.driver.Config()},
 			map[string]interface{}{
 				"Level": level,
 				"Title": title,
@@ -426,7 +431,7 @@ func (w *book) AddSection(level int, title string, secID string) error {
 	})
 
 	return w.writeTemplates(
-		[]string{"section-head.xhtml", templateConfig},
+		[]string{"section-head.xhtml", w.driver.Config()},
 		map[string]interface{}{
 			"Level": level,
 			"SecNo": w.SectionNumber,

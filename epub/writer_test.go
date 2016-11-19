@@ -21,7 +21,7 @@ func TestWriterSimple(t *testing.T) {
 	settings := &Settings{
 		TemplateDir: filepath.Join("..", "tmpl"),
 	}
-	w, err := NewWriter(out, "epubtest", settings)
+	w, err := NewEpubWriter(out, "epubtest", settings)
 	if err != nil {
 		t.Fatal(err)
 	}
