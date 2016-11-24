@@ -81,7 +81,9 @@ func mEpubTitle(args []*tokenizer.Arg, conv *converter) string {
 }
 
 func mVerbatim(args []*tokenizer.Arg, conv *converter) string {
-	return "<pre>" + html.EscapeString(args[0].String()) + "\n</pre>\n"
+	open := "<pre class=\"latex-verbatim\">"
+	close := "\n</pre>\n"
+	return open + html.EscapeString(args[0].String()) + close
 }
 
 func mRef(args []*tokenizer.Arg, conv *converter) string {
