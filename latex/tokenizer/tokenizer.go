@@ -202,6 +202,107 @@ func (p *Tokenizer) skipAllWhiteSpace() error {
 	return nil
 }
 
+func (p *Tokenizer) readUntilChar(stopChar byte) (string, error) {
+	var res []byte
+	for p.Next() {
+		buf, err := p.Peek()
+		if err != nil {
+			return "", err
+		}
+
+		pos := 0
+		done := false
+		for pos < len(buf) {
+			c := buf[pos]
+			pos++
+			if c == stopChar {
+				done = true
+				break
+			} else if c == '\n' {
+				return "", p.MakeError("unexpected end of line")
+			}
+		}
+		res = append(res, buf[:pos]...)
+		p.Skip(pos)
+
+		if done {
+			return string(res[:len(res)-1]), nil
+		}
+	}
+	return "", io.EOF
+}
+
+func (p *Tokenizer) readBalancedUntil(stopChar byte) (string, error) {
+	var res []byte
+	level := 0
+	quoted := false
+	for p.Next() {
+		buf, err := p.Peek()
+		if err != nil {
+			return "", err
+		}
+
+		pos := 0
+		done := false
+		for pos < len(buf) {
+			c := buf[pos]
+			pos++
+
+			if quoted {
+				quoted = false
+				continue
+			}
+			if level <= 0 && c == stopChar {
+				done = true
+				break
+			}
+
+			if c == '{' {
+				level++
+			} else if c == '}' {
+				level--
+			} else if c == '\\' {
+				quoted = true
+			}
+		}
+		res = append(res, buf[:pos]...)
+		p.Skip(pos)
+
+		if done {
+			return string(res[:len(res)-1]), nil
+		}
+	}
+	return "", io.EOF
+}
+
+func (p *Tokenizer) readUntilString(endMarker string) (string, error) {
+	var res []byte
+	endBytes := []byte(endMarker)
+	done := false
+	for p.Next() {
+		buf, err := p.Peek()
+		if err != nil {
+			return "", err
+		}
+
+		pos := bytes.Index(buf, endBytes)
+		extra := 0
+		if pos >= 0 {
+			done = true
+			extra = len(endBytes)
+		} else {
+			pos = len(buf) - len(endBytes) + 1
+		}
+		res = append(res, buf[:pos]...)
+		p.Skip(pos + extra)
+
+		if done {
+			return string(res), nil
+		}
+	}
+	return "", io.EOF
+}
+
 func (p *Tokenizer) readWord() (string, error) {
 	var res []byte
 	for p.Next() {

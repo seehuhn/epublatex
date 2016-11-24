@@ -112,7 +112,7 @@ func (p *Tokenizer) addBuiltinMacros() {
 
 	p.environments["document"] = simpleEnv
 	p.environments["equation"] = simpleEnv
-	p.environments["cases"] = simpleEnv
+	p.environments["verbatim"] = verbatimEnv("%verbatim%")
 }
 
 func parseDocumentclass(p *Tokenizer, name string) (TokenList, error) {
@@ -268,7 +268,7 @@ func parseVerb(p *Tokenizer, name string) (TokenList, error) {
 	}
 	sep := buf[0]
 	p.Skip(1)
-	body, err := p.readUntil(sep)
+	body, err := p.readUntilChar(sep)
 	if err != nil {
 		return nil, err
 	}
@@ -416,79 +416,6 @@ func (p *Tokenizer) readMacroName() (string, error) {
 
 	_, err = p.skipWhiteSpace()
 	return string(name), err
-}
-
-func (p *Tokenizer) readBalancedUntil(stopChar byte) (string, error) {
-	var res []byte
-	level := 0
-	quoted := false
-	for p.Next() {
-		buf, err := p.Peek()
-		if err != nil {
-			return "", err
-		}
-
-		pos := 0
-		done := false
-		for pos < len(buf) {
-			c := buf[pos]
-			pos++
-
-			if quoted {
-				quoted = false
-				continue
-			}
-			if level <= 0 && c == stopChar {
-				done = true
-				break
-			}
-
-			if c == '{' {
-				level++
-			} else if c == '}' {
-				level--
-			} else if c == '\\' {
-				quoted = true
-			}
-		}
-		res = append(res, buf[:pos]...)
-		p.Skip(pos)
-
-		if done {
-			return string(res[:len(res)-1]), nil
-		}
-	}
-	return "", io.EOF
-}
-
-func (p *Tokenizer) readUntil(stopChar byte) (string, error) {
-	var res []byte
-	for p.Next() {
-		buf, err := p.Peek()
-		if err != nil {
-			return "", err
-		}
-
-		pos := 0
-		done := false
-		for pos < len(buf) {
-			c := buf[pos]
-			pos++
-			if c == stopChar {
-				done = true
-				break
-			} else if c == '\n' {
-				return "", p.MakeError("unexpected end of line")
-			}
-		}
-		res = append(res, buf[:pos]...)
-		p.Skip(pos)
-
-		if done {
-			return string(res[:len(res)-1]), nil
-		}
-	}
-	return "", io.EOF
 }
 
 func (p *Tokenizer) readMandatoryArg() (string, error) {

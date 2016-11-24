@@ -76,3 +76,30 @@ func (env typedEnv) ReadArgs(p *Tokenizer, name string) (TokenList, error) {
 	}
 	return TokenList{&Token{Type: TokenMacro, Name: "\\begin", Args: args}}, nil
 }
+
+type verbatimEnv string
+
+func (env verbatimEnv) ReadArgs(p *Tokenizer, name string) (TokenList, error) {
+	endMarker := "\\end{" + name + "}"
+	body, err := p.readUntilString(endMarker)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(body) > 0 && body[0] == '\n' {
+		body = body[1:]
+	}
+	n := len(body)
+	if n > 0 && body[n-1] == '\n' {
+		body = body[:n-1]
+	}
+
+	args := []*Arg{
+		&Arg{
+			Optional: false,
+			Value:    TokenList{verbatim(body)},
+		},
+	}
+	res := TokenList{&Token{Type: TokenMacro, Name: string(env), Args: args}}
+	return res, nil
+}

@@ -71,6 +71,7 @@ func verbatim(s string) *Token {
 // TokenList describes tokenized data in the argument of a macro call.
 type TokenList []*Token
 
+// FormatText converts a TokenList to a string.
 func (toks TokenList) FormatText() string {
 	var res []string
 	mayNeedSpace := false
@@ -114,6 +115,8 @@ func (toks TokenList) FormatText() string {
 	return strings.Join(res, "")
 }
 
+// FormatMaths converts a TokenList to a string, assuming maths mode.
+// Redundant spaces are omitted by this method.
 func (toks TokenList) FormatMaths() string {
 	var res []string
 	mayNeedSpace := false

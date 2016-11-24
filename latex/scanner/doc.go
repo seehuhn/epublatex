@@ -14,5 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Package scanner is used to read in LaTeX source files.
+// Package scanner is used to read in LaTeX source files as a stream
+// of bytes.  The package handles include files and keeps track of the
+// current position in the input file for use in error messages.
 package scanner

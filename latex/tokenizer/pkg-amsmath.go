@@ -22,6 +22,7 @@ func addAmsmathMacros(p *Tokenizer) {
 
 	p.environments["align"] = simpleEnv
 	p.environments["align*"] = simpleEnv
+	p.environments["cases"] = simpleEnv
 	p.environments["equation*"] = simpleEnv
 }
 

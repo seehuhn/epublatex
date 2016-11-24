@@ -39,6 +39,9 @@ func (conv *converter) addBuiltinMacros() {
 	conv.Macros["\\epubauthor"] = funcMacro(mEpubAuthor)
 	conv.Macros["\\epubtitle"] = funcMacro(mEpubTitle)
 
+	// builtin special macros
+	conv.Macros["%verbatim%"] = funcMacro(mVerbatim)
+
 	// TeX/LaTeX macros
 	conv.Macros["\\documentclass"] = mIgnore
 	conv.Macros["\\label"] = mIgnore // handled during pass 1
@@ -75,6 +78,10 @@ func mEpubAuthor(args []*tokenizer.Arg, conv *converter) string {
 func mEpubTitle(args []*tokenizer.Arg, conv *converter) string {
 	conv.Title = args[0].String()
 	return ""
+}
+
+func mVerbatim(args []*tokenizer.Arg, conv *converter) string {
+	return "<pre>" + html.EscapeString(args[0].String()) + "\n</pre>\n"
 }
 
 func mRef(args []*tokenizer.Arg, conv *converter) string {
