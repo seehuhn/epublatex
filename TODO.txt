@@ -1,8 +1,10 @@
 TODO
 ====
 
-* support \parskip and \parindent
 * Use a TeX comment to set the document ID?
+
+* handle environments which enter vertical mode, e.g. {verbatim}
+* support \parskip and \parindent
 * add an XHTML output mode
 * add support for tikz
 
