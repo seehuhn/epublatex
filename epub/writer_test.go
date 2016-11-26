@@ -2,7 +2,6 @@ package epub
 
 import (
 	"io/ioutil"
-	"path/filepath"
 	"testing"
 )
 
@@ -18,10 +17,7 @@ func TestWriterSimple(t *testing.T) {
 		}
 	}()
 
-	settings := &Settings{
-		TemplateDir: filepath.Join("..", "tmpl"),
-	}
-	w, err := NewEpubWriter(out, "epubtest", settings)
+	w, err := NewEpubWriter(out, "epubtest")
 	if err != nil {
 		t.Fatal(err)
 	}

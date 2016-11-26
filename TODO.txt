@@ -1,14 +1,12 @@
 TODO
 ====
 
-* Add support to run the converter outside the build directory.
-
 * support \parskip and \parindent
 * Use a TeX comment to set the document ID?
 * add an XHTML output mode
 * add support for tikz
+
 * should encoding/xml be used to generate META-INF/container.xml and
   OEBPS/content.opf?
-
 * use some prefix (epub? latex?) for all auto-generated CSS?
 * add beamer class support?

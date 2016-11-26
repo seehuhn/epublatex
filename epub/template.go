@@ -17,10 +17,12 @@
 package epub
 
 import (
-	"path/filepath"
+	"path"
 	"strings"
 	"text/template"
 )
+
+//go:generate go run ./embed.go ../tmpl/
 
 func templateFormatList(list []string) string {
 	switch len(list) {
@@ -46,24 +48,35 @@ var templateFunctions = template.FuncMap{
 	"formatlist": templateFormatList,
 }
 
-func (w *book) writeTemplates(tmplFiles []string,
-	data interface{}) error {
+func loadTemplates(names []string) (*template.Template, error) {
+	var res *template.Template
 
-	tmp := make([]string, len(tmplFiles))
-	for i, f := range tmplFiles {
-		tmp[i] = filepath.Join(w.tmplDir, f)
+	for key := range templateFiles {
+		if strings.HasPrefix(key, "parts/") {
+			names = append(names, key)
+		}
 	}
-	tmplFiles = tmp
 
-	name := filepath.Base(tmplFiles[0])
-	tmpl, err := template.New(name).
-		Funcs(templateFunctions).
-		ParseFiles(tmplFiles...)
-	if err != nil {
-		return err
+	for _, name := range names {
+		var tmpl *template.Template
+		baseName := path.Base(name)
+		if res == nil {
+			tmpl = template.New(baseName).Funcs(templateFunctions)
+			res = tmpl
+		} else {
+			tmpl = res.New(baseName)
+		}
+		_, err := tmpl.Parse(templateFiles[name])
+		if err != nil {
+			return nil, err
+		}
 	}
-	// TODO(voss): don't hardcode the parts directory
-	tmpl, err = tmpl.ParseGlob(filepath.Join(w.tmplDir, "parts", "*"))
+
+	return res, nil
+}
+
+func (w *book) writeTemplates(tmplFiles []string, data interface{}) error {
+	tmpl, err := loadTemplates(tmplFiles)
 	if err != nil {
 		return err
 	}

@@ -19,8 +19,9 @@ images (using pdflatex), and the rest of the LaTeX source is converted
 into HTML; both the HTML and the rendered images are then combined
 into an EPUB 3.0 file.
 
-This program is not yet finished, and is not yet usable for any real
-projects.  Contributions in the form of patches would be very welcome.
+This program is not yet finished, and may not yet be usable for any
+real projects.  Contributions in the form of patches would be very
+welcome.
 
 Experimenting with the Code
 ---------------------------
@@ -37,21 +38,16 @@ To experiment with the current code::
   cd epublatex
   go run main.go examples/nonsense.tex
 
-This will hopefully generate EPUB output in the file ``test.epub``.
+This will hopefully generate EPUB output in the file ``nonsense.epub``.
 The code still has many rough edges and known problems:
 
-  * The output file name is currently fixed to ``test.epub``.
-  * Currently the program must be run in the root directory of the
-    epublatex source tree.
-  * Only a very small subset of LaTeX is implemented.
-  * The program keeps a cache of rendered images in some directory
-    (``$HOME/Library/Caches/de.seehuhn.ebook/maths/`` on MacOS, and
-    ``$HOME/.cache/de.seehuhn.ebook/maths/`` on Linux).  Currently,
-    files are never removed from the cache, so you will need to
-    manually delete the contents of the cache directory from time to
-    time.
+  * Only a small subset of LaTeX is implemented.
   * I am still making large changes to the code without any attempt
     at backwards compatibility.
+
+Note: The program keeps a cache of rendered images in some directory
+(``$HOME/Library/Caches/de.seehuhn.ebook/maths/`` on MacOS, and
+``$HOME/.cache/de.seehuhn.ebook/maths/`` on Linux).
 
 Structure of the Code
 ---------------------

@@ -21,11 +21,9 @@ import (
 	"bufio"
 	"compress/flate"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"net/http"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -41,9 +39,6 @@ const (
 	coverName = "cover"
 	titleName = "title"
 )
-
-var DefaultTemplateDir = flag.String("epub-templates", "tmpl",
-	"directory where the EPUB template files can be found")
 
 var (
 	ErrBookClosed        = errors.New("attempt to write in a closed book")
@@ -95,16 +90,11 @@ type book struct {
 	nextID      int
 	current     io.WriteCloser
 	currentPath string
-	tmplDir     string
 
 	driver driver
 }
 
-type Settings struct {
-	TemplateDir string
-}
-
-func NewEpubWriter(out io.Writer, identifier string, settings *Settings) (
+func NewEpubWriter(out io.Writer, identifier string) (
 	Writer, error) {
 	zipFile := zip.NewWriter(out)
 	zipFile.RegisterCompressor(zip.Deflate,
@@ -130,29 +120,20 @@ func NewEpubWriter(out io.Writer, identifier string, settings *Settings) (
 	driver := &epubDriver{
 		ZipFile: zipFile,
 	}
-	return newWriter(driver, identifier, settings)
+	return newWriter(driver, identifier)
 }
 
-func NewXhtmlWriter(baseDir string, identifier string, settings *Settings) (
+func NewXhtmlWriter(baseDir string, identifier string) (
 	Writer, error) {
 	driver := &xhtmlDriver{
 		BaseDir: baseDir,
 	}
-	return newWriter(driver, identifier, settings)
+	return newWriter(driver, identifier)
 }
 
-func newWriter(driver driver, identifier string, settings *Settings) (
+func newWriter(driver driver, identifier string) (
 	Writer, error) {
 	nameSpace := uuid.NewSHA1(uuid.NameSpaceURL, []byte(baseNameSpaceURL))
-
-	tmplDir := *DefaultTemplateDir
-	if settings != nil && settings.TemplateDir != "" {
-		tmplDir = settings.TemplateDir
-	}
-	tmplDir, err := filepath.Abs(tmplDir)
-	if err != nil {
-		return nil, err
-	}
 
 	w := &book{
 		UUID:         uuid.NewSHA1(nameSpace, []byte(identifier)),
@@ -161,8 +142,6 @@ func newWriter(driver driver, identifier string, settings *Settings) (
 
 		open:  true,
 		Files: make(map[string]*File),
-
-		tmplDir: tmplDir,
 
 		driver: driver,
 	}

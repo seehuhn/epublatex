@@ -20,8 +20,6 @@ type environment interface {
 	ReadArgs(p *Tokenizer, name string) (TokenList, error)
 }
 
-type envFunc func(p *Tokenizer, name string) (TokenList, error)
-
 type simpleEnvClass struct{}
 
 func (env simpleEnvClass) ReadArgs(p *Tokenizer, name string) (TokenList, error) {

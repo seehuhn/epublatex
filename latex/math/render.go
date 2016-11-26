@@ -37,8 +37,6 @@ const (
 	exHeight  = 4.30554 // x-height of cmi10 [TeX pt / ex]
 	exPerPix  = 72.27 / exHeight / float64(renderRes)
 
-	imgNames = "img%d.png"
-
 	batchSize           = 10
 	mathCachePruneLimit = 256 * 1024
 )

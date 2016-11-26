@@ -20,10 +20,14 @@ import (
 	"flag"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/seehuhn/epublatex/epub"
 	"github.com/seehuhn/epublatex/latex"
 )
+
+var output = flag.String("output", "", "the output file name")
 
 func main() {
 	log.Println("start")
@@ -34,15 +38,19 @@ func main() {
 	}
 	inputName := flag.Arg(0)
 
-	outFile := "test.epub"
-	log.Println("writing", outFile)
-	out, err := os.Create(outFile)
+	outputName := *output
+	if outputName == "" {
+		base := strings.TrimSuffix(filepath.Base(inputName), ".tex")
+		outputName = base + ".epub"
+	}
+	log.Println("writing", outputName)
+	out, err := os.Create(outputName)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer out.Close()
 
-	book, err := epub.NewEpubWriter(out, "my second ebook (test)", nil)
+	book, err := epub.NewEpubWriter(out, "my second ebook (test)")
 	if err != nil {
 		log.Fatal(err)
 	}
