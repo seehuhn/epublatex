@@ -28,6 +28,7 @@ import (
 )
 
 var output = flag.String("output", "", "the output file name")
+var html = flag.Bool("html", false, "generate HTML instead of EPUB")
 
 func main() {
 	log.Println("start")
@@ -41,18 +42,29 @@ func main() {
 	outputName := *output
 	if outputName == "" {
 		base := strings.TrimSuffix(filepath.Base(inputName), ".tex")
-		outputName = base + ".epub"
+		outputName = base
+		if !*html {
+			outputName = outputName + ".epub"
+		}
 	}
 	log.Println("writing", outputName)
-	out, err := os.Create(outputName)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer out.Close()
 
-	book, err := epub.NewEpubWriter(out, "my second ebook (test)")
-	if err != nil {
-		log.Fatal(err)
+	BookID := "my second ebook (test)"
+
+	var book epub.Writer
+	var err error
+	if *html {
+		book, err = epub.NewXhtmlWriter(outputName, BookID)
+	} else {
+		out, err := os.Create(outputName)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer out.Close()
+		book, err = epub.NewEpubWriter(out, BookID)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 	defer func() {
 		err := book.Flush()

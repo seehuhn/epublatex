@@ -248,10 +248,15 @@ func (conv *converter) Pass2() (err error) {
 			// Don't try to write space outside the {document} environment.
 
 		case token.Type == tokenizer.TokenSpace:
-			w.EndWord()
+			err = w.EndWord()
+			if err != nil {
+				return err
+			}
 		case token.Type == tokenizer.TokenEmptyLine:
-			w.EndParagraph()
-
+			err = w.EndParagraph()
+			if err != nil {
+				return err
+			}
 		}
 
 	NextToken:
