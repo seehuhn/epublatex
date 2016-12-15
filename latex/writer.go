@@ -36,6 +36,8 @@ type writer struct {
 	word       []byte
 	line       []string
 	lineLength int
+
+	nextParTag string
 }
 
 func newWriter(out epub.Writer, baseDir string) *writer {
@@ -61,13 +63,19 @@ func (w *writer) AddCoverImage(fname string) error {
 func (w *writer) WriteTitle(title, author string) error {
 	e1 := w.EndParagraph()
 	e2 := w.out.AddTitle(title, []string{author})
-	return mergeErrors(e1, e2)
+	return firstError(e1, e2)
 }
 
 func (w *writer) AddSection(level int, title string, id string) error {
 	e1 := w.EndParagraph()
 	e2 := w.out.AddSection(level, title, id)
-	return mergeErrors(e1, e2)
+	return firstError(e1, e2)
+}
+
+func (w *writer) WriteVertical(body string) error {
+	e1 := w.suspendParagraph("cont")
+	e2 := w.out.WriteString(body)
+	return firstError(e1, e2)
 }
 
 func (w *writer) StartBlock(name string, classes []string, id string) error {
@@ -93,13 +101,19 @@ func (w *writer) EndBlock() error {
 	return w.out.WriteString("</div>\n")
 }
 
-func (w *writer) EndParagraph() error {
+func (w *writer) suspendParagraph(contTag string) error {
+	w.nextParTag = ""
 	e1 := w.endWord(true)
 	if len(w.line) == 0 {
 		return e1
 	}
+	w.nextParTag = contTag
 	e2 := w.writeLine()
-	return mergeErrors(e1, e2)
+	return firstError(e1, e2)
+}
+
+func (w *writer) EndParagraph() error {
+	return w.suspendParagraph("")
 }
 
 func (w *writer) writeLine() error {
@@ -119,8 +133,14 @@ func (w *writer) endWord(endPar bool) error {
 	if strings.Contains(word, noBreakSpace) {
 		word = "<span class=\"" + cssPrefix + "nw\">" + word + "</span>"
 	}
-	if endPar && (word != "" || len(w.line) > 0) {
-		word = word + "</p>"
+	if endPar {
+		if word != "" {
+			word = word + "</p>"
+		} else if len(w.line) > 0 {
+			k := len(w.line) - 1
+			w.line[k] = w.line[k] + "</p>"
+			w.lineLength += 4
+		}
 	}
 	l := len(word)
 	if l == 0 {
@@ -128,8 +148,12 @@ func (w *writer) endWord(endPar bool) error {
 	}
 
 	if len(w.line) == 0 {
-		w.line = []string{"<p>" + word}
-		w.lineLength = 3 + l
+		tag := "<p>"
+		if w.nextParTag != "" {
+			tag = `<p class="` + w.nextParTag + `">`
+		}
+		w.line = []string{tag + word}
+		w.lineLength = len(tag) + l
 	} else if w.lineLength+1+l <= outputLineWidth {
 		w.line = append(w.line, word)
 		w.lineLength += 1 + l

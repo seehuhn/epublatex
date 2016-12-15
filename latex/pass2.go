@@ -236,8 +236,18 @@ func (conv *converter) Pass2() (err error) {
 				}
 
 			default:
+				// TODO(voss): add a more general mechanism to select
+				// vertical mode.
+				verticalMode := token.Name == "%verbatim%"
 				s := conv.convertHTML(tokenizer.TokenList{token})
-				w.WriteString(s)
+				if verticalMode {
+					err := w.WriteVertical(s)
+					if err != nil {
+						return err
+					}
+				} else {
+					w.WriteString(s)
+				}
 			}
 		case token.Type == tokenizer.TokenWord:
 			w.WriteString(token.Name)

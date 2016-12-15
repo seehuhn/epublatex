@@ -35,11 +35,11 @@ type macro interface {
 }
 
 func (conv *converter) addBuiltinMacros() {
-	// builtin EPUB support
+	// built-in EPUB support
 	conv.Macros["\\epubauthor"] = funcMacro(mEpubAuthor)
 	conv.Macros["\\epubtitle"] = funcMacro(mEpubTitle)
 
-	// builtin special macros
+	// built-in special macros
 	conv.Macros["%verbatim%"] = funcMacro(mVerbatim)
 
 	// TeX/LaTeX macros

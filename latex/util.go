@@ -16,7 +16,7 @@
 
 package latex
 
-func mergeErrors(errors ...error) error {
+func firstError(errors ...error) error {
 	for _, err := range errors {
 		if err != nil {
 			return err

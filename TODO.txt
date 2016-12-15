@@ -3,9 +3,9 @@ TODO
 
 * Use a TeX comment to set the document ID?
 
-* handle environments which enter vertical mode, e.g. {verbatim}
-* support \parskip and \parindent
 * add support for tikz
+* support \parskip and \parindent
+* handle text before the first chapter/section
 
 * should encoding/xml be used to generate META-INF/container.xml and
   OEBPS/content.opf?
