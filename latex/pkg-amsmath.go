@@ -27,3 +27,7 @@ func addAmsmathMacros(conv *converter, options string) {
 		RenderMath: "align*",
 	}
 }
+
+func init() {
+	addPackage("amsmath", addAmsmathMacros)
+}

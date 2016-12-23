@@ -53,3 +53,7 @@ func amsmathDMO(p *Tokenizer, name string) (TokenList, error) {
 	}
 	return TokenList{tok}, nil
 }
+
+func init() {
+	addPackage("amsmath", addAmsmathMacros)
+}

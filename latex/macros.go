@@ -24,11 +24,18 @@ import (
 	"github.com/seehuhn/epublatex/latex/tokenizer"
 )
 
-var pkgInit = map[string]func(conv *converter, options string){
-	"amsmath":  addAmsmathMacros,
-	"amsfonts": addNoMacros,
-	"amsthm":   addAmsthmMacros,
+type pkgInitFunc func(conv *converter, options string)
+
+var pkgInit map[string]pkgInitFunc
+
+func addPackage(name string, init pkgInitFunc) {
+	if pkgInit == nil {
+		pkgInit = make(map[string]pkgInitFunc)
+	}
+	pkgInit[name] = init
 }
+
+func addNoMacros(conv *converter, options string) {}
 
 type macro interface {
 	HTMLOutput(args []*tokenizer.Arg, conv *converter) string
@@ -67,8 +74,6 @@ func (conv *converter) addBuiltinMacros() {
 		RenderMath: "equation*",
 	}
 }
-
-func addNoMacros(conv *converter, options string) {}
 
 func mEpubAuthor(args []*tokenizer.Arg, conv *converter) string {
 	conv.Author = args[0].String()

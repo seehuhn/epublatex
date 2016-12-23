@@ -58,3 +58,7 @@ func parseNewtheorem(p *Tokenizer, name string) (TokenList, error) {
 	}
 	return TokenList{tok}, nil
 }
+
+func init() {
+	addPackage("amsthm", addAmsthmMacros)
+}

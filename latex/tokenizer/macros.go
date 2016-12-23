@@ -26,12 +26,15 @@ import (
 	"github.com/seehuhn/epublatex/latex/scanner"
 )
 
-var pkgInit = map[string]func(p *Tokenizer){
-	"amsmath":  addAmsmathMacros,
-	"amsfonts": addAmsfontsMacros,
-	"amsthm":   addAmsthmMacros,
-	"graphicx": addGraphicxMacros,
-	"tikz":     addTikzMacros,
+type pkgInitFunc func(p *Tokenizer)
+
+var pkgInit map[string]pkgInitFunc
+
+func addPackage(name string, init pkgInitFunc) {
+	if pkgInit == nil {
+		pkgInit = make(map[string]pkgInitFunc)
+	}
+	pkgInit[name] = init
 }
 
 type macro interface {

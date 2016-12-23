@@ -19,3 +19,7 @@ package tokenizer
 func addTikzMacros(p *Tokenizer) {
 	p.environments["tikzpicture"] = typedEnv("O")
 }
+
+func init() {
+	addPackage("tikz", addTikzMacros)
+}

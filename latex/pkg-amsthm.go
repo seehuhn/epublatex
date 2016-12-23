@@ -1,4 +1,4 @@
-// pkg-amsthm.go -
+// pkg-amsthm.go - handle the "amsthm" LaTeX package
 // Copyright (C) 2016  Jochen Voss <voss@seehuhn.de>
 //
 // This program is free software: you can redistribute it and/or modify
@@ -46,4 +46,8 @@ func mNewtheorem(args []*tokenizer.Arg, conv *converter) string {
 func mTheoremstyle(args []*tokenizer.Arg, conv *converter) string {
 	conv.PkgState["amsthm@style"] = args[0].String()
 	return ""
+}
+
+func init() {
+	addPackage("amsthm", addAmsthmMacros)
 }

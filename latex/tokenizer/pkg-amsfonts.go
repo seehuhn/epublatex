@@ -19,3 +19,7 @@ package tokenizer
 func addAmsfontsMacros(p *Tokenizer) {
 	p.macros["\\mathbb"] = typedMacro("A")
 }
+
+func init() {
+	addPackage("amsfonts", addAmsfontsMacros)
+}

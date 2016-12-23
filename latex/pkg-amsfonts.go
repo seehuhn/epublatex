@@ -1,4 +1,4 @@
-// pkg-graphicx.go -
+// pkg-amsfonts.go - handle the "amsfonts" LaTeX package
 // Copyright (C) 2016  Jochen Voss <voss@seehuhn.de>
 //
 // This program is free software: you can redistribute it and/or modify
@@ -14,12 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package tokenizer
-
-func addGraphicxMacros(p *Tokenizer) {
-	p.macros["\\includegraphics"] = typedMacro("OA")
-}
+package latex
 
 func init() {
-	addPackage("graphicx", addGraphicxMacros)
+	addPackage("amsfonts", addNoMacros)
 }

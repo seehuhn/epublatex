@@ -1,12 +1,14 @@
 TODO
 ====
 
-* Use a TeX comment to set the document ID?
-
 * add support for tikz
 * support \parskip and \parindent
-* handle text before the first chapter/section
+* add a way to set the document ID (tex comment? default to title?
+  directory name?)
+* in pass 1, add line/column information to tokens for better error messages
+* in xhtml mode, add an "index.xhtml" file as the entry point
 
+* handle text before the first chapter/section
 * should encoding/xml be used to generate META-INF/container.xml and
   OEBPS/content.opf?
 * use some prefix (epub? latex?) for all auto-generated CSS?
