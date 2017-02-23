@@ -1,7 +1,11 @@
 TODO
 ====
 
-* add support for tikz
+* Add support in latex/tokenizer for environments which just have
+  macros expanded and then collect all the tokens until the end of the
+  environment.  Use this to simplify math-mode support
+  (pass1.go/pass2.go in package latex), and to implement the
+  tikzpicture environment.
 * support \parskip and \parindent
 * add a way to set the document ID (tex comment? default to title?
   directory name?)
