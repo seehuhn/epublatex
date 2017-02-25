@@ -16,7 +16,7 @@
 
 package latex
 
-func firstError(errors ...error) error {
+func firstOf(errors ...error) error {
 	for _, err := range errors {
 		if err != nil {
 			return err

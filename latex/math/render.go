@@ -30,7 +30,7 @@ import (
 )
 
 var noCache = flag.Bool("latex-math-no-cache", false,
-	"whether to disable the rendering cache")
+	"whether to disable the maths rendering cache")
 
 const (
 	renderRes = 3 * 96  // render resolution [pixels / inch]

@@ -61,6 +61,7 @@ type Writer interface {
 
 	RegisterFile(baseName, mimeType string, inSpine bool) *File
 	CreateFile(file *File) (io.Writer, error)
+	CloseFile() error
 	WriteString(s string) error
 
 	Flush() error
@@ -224,7 +225,7 @@ func (w *book) RegisterFile(baseName, mimeType string, inSpine bool) *File {
 
 func (w *book) createFile(path string) error {
 	if w.current != nil {
-		err := w.closeFile()
+		err := w.CloseFile()
 		if err != nil {
 			return err
 		}
@@ -237,7 +238,7 @@ func (w *book) createFile(path string) error {
 	return nil
 }
 
-func (w *book) closeFile() error {
+func (w *book) CloseFile() error {
 	err := w.current.Close()
 	w.current = nil
 	return err
@@ -283,7 +284,7 @@ func (w *book) AddCoverImage(r io.Reader) error {
 	if err != nil {
 		return err
 	}
-	err = w.closeFile()
+	err = w.CloseFile()
 	if err != nil {
 		return err
 	}
@@ -342,7 +343,7 @@ func (w *book) closeSections(level int) error {
 		if err != nil {
 			return err
 		}
-		err = w.closeFile()
+		err = w.CloseFile()
 		if err != nil {
 			return err
 		}

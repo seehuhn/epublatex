@@ -175,6 +175,9 @@ func (conv *converter) Pass2() (err error) {
 				if err != nil {
 					return err
 				}
+			case "%tikz%":
+				picture := token.Args[1].String()
+				w.WriteString(conv.GetImage("tikzpicture", picture))
 
 			case "\\begin":
 				name := token.Args[0].String()

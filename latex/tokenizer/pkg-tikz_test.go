@@ -1,5 +1,5 @@
-// pkg-tikz.go -
-// Copyright (C) 2016  Jochen Voss <voss@seehuhn.de>
+// pkg-tikz_test.go - unit tests for the TikZ support
+// Copyright (C) 2017  Jochen Voss <voss@seehuhn.de>
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -16,10 +16,30 @@
 
 package tokenizer
 
-func addTikzMacros(p *Tokenizer) {
-	p.environments["tikzpicture"] = collectEnv("%tikz%")
-}
+import (
+	"testing"
+)
 
-func init() {
-	addPackage("tikz", addTikzMacros)
+func TestTikZ(t *testing.T) {
+	tokens := parseString(`\documentclass{article}
+\usepackage{tikz}
+\begin{document}
+Hello,
+\begin{tikzpicture}
+  \draw (0,0) -- (1,1);
+\end{tikzpicture}
+\end{document}
+`)
+	seen := false
+	for _, tok := range tokens {
+		if isMacro(tok, "%tikz%") {
+			seen = true
+		}
+		if isMacro(tok, "\\draw") {
+			t.Error("tikzpicture environment didn't capture it's contents")
+		}
+	}
+	if !seen {
+		t.Error("tikzpicture environment not detected")
+	}
 }

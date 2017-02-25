@@ -63,19 +63,19 @@ func (w *writer) AddCoverImage(fname string) error {
 func (w *writer) WriteTitle(title, author string) error {
 	e1 := w.EndParagraph()
 	e2 := w.out.AddTitle(title, []string{author})
-	return firstError(e1, e2)
+	return firstOf(e1, e2)
 }
 
 func (w *writer) AddSection(level int, title string, id string) error {
 	e1 := w.EndParagraph()
 	e2 := w.out.AddSection(level, title, id)
-	return firstError(e1, e2)
+	return firstOf(e1, e2)
 }
 
 func (w *writer) WriteVertical(body string) error {
 	e1 := w.suspendParagraph("cont")
 	e2 := w.out.WriteString(body)
-	return firstError(e1, e2)
+	return firstOf(e1, e2)
 }
 
 func (w *writer) StartBlock(name string, classes []string, id string) error {
@@ -109,7 +109,7 @@ func (w *writer) suspendParagraph(contTag string) error {
 	}
 	w.nextParTag = contTag
 	e2 := w.writeLine()
-	return firstError(e1, e2)
+	return firstOf(e1, e2)
 }
 
 func (w *writer) EndParagraph() error {

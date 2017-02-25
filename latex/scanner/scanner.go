@@ -156,7 +156,7 @@ func (scan *Scanner) Next() bool {
 // populate the look-ahead buffer before every call to .Peek().
 func (scan *Scanner) Peek() ([]byte, error) {
 	if !scan.ready {
-		panic("parser not ready, missing call to .Next()")
+		panic("scanner not ready, missing call to .Next()")
 	}
 	if len(scan.peekBuf) > 0 {
 		return scan.peekBuf, nil
@@ -233,6 +233,8 @@ type stackFrame struct {
 	Context string
 }
 
+// ParseError is used to indicate the reason of location of parse
+// errors.
 type ParseError struct {
 	Message string
 	stack   []stackFrame

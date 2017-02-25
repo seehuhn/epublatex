@@ -49,14 +49,25 @@ var double = map[string]bool{
 	"''": true,
 }
 
+type collectState struct {
+	lookingFor     isEnd
+	collectingInto *Token
+}
+
 // ParseTex splits the Tokenizer's input into tokens and writes these
-// tokens into the given channel.
+// tokens to the channel `res`.
 func (p *Tokenizer) ParseTex(res chan<- *Token) error {
+	var stack []collectState
+	var lookingFor isEnd
+	var collectingInto *Token
+
 	for p.Next() {
 		buf, err := p.Peek()
 		if err != nil {
 			return err
 		}
+
+		var nextBatch TokenList
 
 		switch {
 		case buf[0] == '\\':
@@ -70,22 +81,25 @@ func (p *Tokenizer) ParseTex(res chan<- *Token) error {
 				if err != nil {
 					return err
 				}
-				for _, tok := range tokens {
-					res <- tok
-				}
+				nextBatch = tokens
 			} else if name == "\\begin" {
 				envName, err := p.readMandatoryArg()
 				if err != nil {
 					return err
 				}
 				if env := p.environments[envName]; env != nil {
-					tokens, err := env.ReadArgs(p, envName)
+					tokens, newLookingFor, err := env.ReadArgs(p, envName)
 					if err != nil {
 						return err
 					}
-					for _, tok := range tokens {
-						res <- tok
+					nextBatch = tokens
+
+					if newLookingFor != nil {
+						stack = append(stack,
+							collectState{lookingFor, collectingInto})
 					}
+					lookingFor = newLookingFor
+					collectingInto = nil
 				} else {
 					log.Println("unknown environment", envName)
 					args, err := p.readAllMacroArgs()
@@ -98,7 +112,9 @@ func (p *Tokenizer) ParseTex(res chan<- *Token) error {
 							Value:    TokenList{verbatim(envName)},
 						},
 					}, args...)
-					res <- &Token{Type: TokenMacro, Name: name, Args: args}
+					nextBatch = TokenList{
+						&Token{Type: TokenMacro, Name: name, Args: args},
+					}
 				}
 			} else {
 				log.Println("unknown macro", name)
@@ -106,7 +122,9 @@ func (p *Tokenizer) ParseTex(res chan<- *Token) error {
 				if err != nil {
 					return err
 				}
-				res <- &Token{Type: TokenMacro, Name: name, Args: args}
+				nextBatch = TokenList{
+					&Token{Type: TokenMacro, Name: name, Args: args},
+				}
 			}
 
 		case buf[0] == '%':
@@ -114,14 +132,14 @@ func (p *Tokenizer) ParseTex(res chan<- *Token) error {
 			if err != nil {
 				return err
 			}
-			res <- &Token{Type: TokenComment, Name: comment}
+			nextBatch = TokenList{&Token{Type: TokenComment, Name: comment}}
 
 		case bytes.HasPrefix(buf, []byte("\n\n")):
 			err := p.skipAllWhiteSpace()
 			if err != nil {
 				return err
 			}
-			res <- &Token{Type: TokenEmptyLine}
+			nextBatch = TokenList{&Token{Type: TokenEmptyLine}}
 
 		case isSpace(buf[0]):
 			emptyLine, err := p.skipWhiteSpace()
@@ -129,7 +147,7 @@ func (p *Tokenizer) ParseTex(res chan<- *Token) error {
 				return err
 			}
 			if !emptyLine {
-				res <- &Token{Type: TokenSpace}
+				nextBatch = TokenList{&Token{Type: TokenSpace}}
 			}
 
 		case isLetter(buf[0]):
@@ -137,7 +155,7 @@ func (p *Tokenizer) ParseTex(res chan<- *Token) error {
 			if err != nil {
 				return err
 			}
-			res <- &Token{Type: TokenWord, Name: word}
+			nextBatch = TokenList{&Token{Type: TokenWord, Name: word}}
 
 		default:
 			var name string
@@ -148,9 +166,36 @@ func (p *Tokenizer) ParseTex(res chan<- *Token) error {
 				name = string(buf[:1])
 				p.Skip(1)
 			}
-			res <- &Token{Type: TokenOther, Name: name}
+			nextBatch = TokenList{&Token{Type: TokenOther, Name: name}}
+		}
+
+		for _, tok := range nextBatch {
+			if lookingFor != nil {
+				if collectingInto == nil {
+					tok.Args = append(tok.Args, &Arg{})
+					collectingInto = tok
+					continue
+				}
+				if !lookingFor(tok) {
+					k := len(collectingInto.Args) - 1
+					collectingInto.Args[k].Value = append(collectingInto.Args[k].Value, tok)
+					continue
+				}
+				tok = collectingInto
+
+				var old collectState
+				old, stack = stack[len(stack)-1], stack[:len(stack)-1]
+				lookingFor = old.lookingFor
+				collectingInto = old.collectingInto
+			}
+			res <- tok
 		}
 	}
+
+	if lookingFor != nil {
+		return MissingEndError(collectingInto.Name)
+	}
+
 	return nil
 }
 

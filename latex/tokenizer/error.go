@@ -1,4 +1,4 @@
-// pkg-tikz.go -
+// error.go - error objects for use by the tokenizer
 // Copyright (C) 2016  Jochen Voss <voss@seehuhn.de>
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,10 +16,10 @@
 
 package tokenizer
 
-func addTikzMacros(p *Tokenizer) {
-	p.environments["tikzpicture"] = collectEnv("%tikz%")
-}
+// MissingEndError is used to indicate unterminated maths and tikz
+// environments.
+type MissingEndError string
 
-func init() {
-	addPackage("tikz", addTikzMacros)
+func (err MissingEndError) Error() string {
+	return "unterminated " + string(err)
 }

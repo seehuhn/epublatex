@@ -1,11 +1,10 @@
 TODO
 ====
 
-* Add support in latex/tokenizer for environments which just have
-  macros expanded and then collect all the tokens until the end of the
-  environment.  Use this to simplify math-mode support
-  (pass1.go/pass2.go in package latex), and to implement the
-  tikzpicture environment.
+* correct scaling for tikz pictures
+* change maths parsing to use 'collectEnv'
+* should more infrastructure be shared between maths rendering and tikz rendering?
+* start the image renderers on demand
 * support \parskip and \parindent
 * add a way to set the document ID (tex comment? default to title?
   directory name?)
@@ -17,3 +16,5 @@ TODO
   OEBPS/content.opf?
 * use some prefix (epub? latex?) for all auto-generated CSS?
 * add beamer class support?
+
+* test the scanner/parser using github.com/dvyukov/go-fuzz

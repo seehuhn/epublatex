@@ -1,4 +1,4 @@
-// comment_test.go -
+// comment_test.go - unit tests for comment.go
 // Copyright (C) 2016  Jochen Voss <voss@seehuhn.de>
 //
 // This program is free software: you can redistribute it and/or modify

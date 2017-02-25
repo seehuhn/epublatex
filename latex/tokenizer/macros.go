@@ -529,3 +529,21 @@ loop:
 
 	return args, nil
 }
+
+func isMacro(tok *Token, name string, args ...string) bool {
+	if tok.Type != TokenMacro {
+		return false
+	}
+	if tok.Name != name {
+		return false
+	}
+	if len(tok.Args) < len(args) {
+		return false
+	}
+	for i, arg := range args {
+		if tok.Args[i].String() != arg {
+			return false
+		}
+	}
+	return true
+}

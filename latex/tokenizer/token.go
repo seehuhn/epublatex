@@ -17,6 +17,7 @@
 package tokenizer
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -49,6 +50,32 @@ type Token struct {
 	// For tokens of type TokenMacro, this field specifies the values
 	// of the macro arguments.  Unused for all other token types.
 	Args []*Arg
+}
+
+func (tok *Token) String() string {
+	var tokType string
+	switch tok.Type {
+	case TokenMacro:
+		tokType = "Macro"
+	case TokenEmptyLine:
+		tokType = "EmptyLine"
+	case TokenComment:
+		tokType = "Comment"
+	case TokenSpace:
+		tokType = "Space"
+	case TokenWord:
+		tokType = "Word"
+	case TokenOther:
+		tokType = "Other"
+	case TokenVerbatim:
+		tokType = "Verbatim"
+	default:
+		tokType = fmt.Sprintf("type%d", tok.Type)
+	}
+	if len(tok.Args) > 0 {
+		return fmt.Sprintf("%s('%s' %q)", tokType, tok.Name, tok.Args)
+	}
+	return fmt.Sprintf("%s('%s')", tokType, tok.Name)
 }
 
 // Arg specifies a single macro argument.

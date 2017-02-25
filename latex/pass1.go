@@ -25,6 +25,7 @@ import (
 
 	"github.com/seehuhn/epublatex/latex/math"
 	"github.com/seehuhn/epublatex/latex/render"
+	"github.com/seehuhn/epublatex/latex/tikz"
 	"github.com/seehuhn/epublatex/latex/tokenizer"
 )
 
@@ -45,14 +46,18 @@ func (conv *converter) Pass1() error {
 	refType := ""
 	refName := ""
 
-	renderer, err := math.NewRenderer(imageChan)
+	mathRenderer, err := math.NewRenderer(imageChan)
+	if err != nil {
+		return err
+	}
+	tikzRenderer, err := tikz.NewRenderer(imageChan)
 	if err != nil {
 		return err
 	}
 	// TODO(voss): handle this properly
-	renderer.AddPreamble("\\usepackage{amsfonts}")
-	renderer.AddPreamble("\\usepackage{amsmath}")
-	renderer.AddPreamble("\\DeclareMathOperator*{\\argmax}{arg\\,max}")
+	mathRenderer.AddPreamble("\\usepackage{amsfonts}")
+	mathRenderer.AddPreamble("\\usepackage{amsmath}")
+	mathRenderer.AddPreamble("\\DeclareMathOperator*{\\argmax}{arg\\,max}")
 	var mathMode isEnd
 	var mathEnv string
 	var mathTokens tokenizer.TokenList
@@ -92,7 +97,7 @@ func (conv *converter) Pass1() error {
 			}
 
 			if mathMode(token) {
-				renderer.AddFormula(mathEnv, mathTokens.FormatMaths())
+				mathRenderer.AddFormula(mathEnv, mathTokens.FormatMaths())
 
 				mathMode = nil
 				mathTokens = nil
@@ -125,6 +130,9 @@ func (conv *converter) Pass1() error {
 				ref = pos
 				refType = "Subsection"
 				refName = conv.Section.String()
+			case "%tikz%":
+				picture := token.Args[1].String()
+				tikzRenderer.AddPicture(picture)
 			case "\\begin":
 				name := token.Args[0].String()
 				if env, ok := conv.Envs[name]; ok {
@@ -157,8 +165,10 @@ func (conv *converter) Pass1() error {
 		pos++
 	}
 
-	err = renderer.Finish()
+	e1 := mathRenderer.Finish()
+	e2 := tikzRenderer.Finish()
 	close(imageChan)
+	err = firstOf(e1, e2)
 	if err != nil {
 		return err
 	}

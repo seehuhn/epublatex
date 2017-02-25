@@ -69,16 +69,17 @@ func (conv *converter) imageAdder(in <-chan *render.BookImage, res chan<- error)
 		file := conv.Book.RegisterFile(rawName, mime, false)
 		w, err := conv.Book.CreateFile(file)
 		if err != nil {
-			if firstError == nil {
-				firstError = err
-			}
+			firstError = firstOf(firstError, err)
 			continue
 		}
 		err = enc(w, job.Image)
 		if err != nil {
-			if firstError == nil {
-				firstError = err
-			}
+			firstError = firstOf(firstError, err)
+			continue
+		}
+		err = conv.Book.CloseFile()
+		if err != nil {
+			firstError = firstOf(firstError, err)
 			continue
 		}
 

@@ -96,5 +96,5 @@ func (w *book) addFileFromTemplate(path string, tmplFiles []string,
 	if err != nil {
 		return err
 	}
-	return w.closeFile()
+	return w.CloseFile()
 }
