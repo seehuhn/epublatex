@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -60,8 +61,7 @@ type Writer interface {
 	AddSection(level int, title string, secID string) error
 
 	RegisterFile(baseName, mimeType string, inSpine bool) *File
-	CreateFile(file *File) (io.Writer, error)
-	CloseFile() error
+	CreateFile(file *File) (io.WriteCloser, error)
 	WriteString(s string) error
 
 	Flush() error
@@ -223,9 +223,16 @@ func (w *book) RegisterFile(baseName, mimeType string, inSpine bool) *File {
 	return file
 }
 
+func (w *book) closeFile() error {
+	err := w.current.Close()
+	w.current = nil
+	return err
+}
+
 func (w *book) createFile(path string) error {
 	if w.current != nil {
-		err := w.CloseFile()
+		log.Println("Warning: file not closed")
+		err := w.closeFile()
 		if err != nil {
 			return err
 		}
@@ -238,13 +245,17 @@ func (w *book) createFile(path string) error {
 	return nil
 }
 
-func (w *book) CloseFile() error {
-	err := w.current.Close()
-	w.current = nil
-	return err
+type epubFileCloser book
+
+func (w *epubFileCloser) Write(p []byte) (n int, err error) {
+	return w.current.Write(p)
 }
 
-func (w *book) CreateFile(file *File) (io.Writer, error) {
+func (w *epubFileCloser) Close() error {
+	return (*book)(w).closeFile()
+}
+
+func (w *book) CreateFile(file *File) (io.WriteCloser, error) {
 	if !w.open {
 		return nil, ErrBookClosed
 	}
@@ -257,7 +268,7 @@ func (w *book) CreateFile(file *File) (io.Writer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return w.current, nil
+	return (*epubFileCloser)(w), nil
 }
 
 func (w *book) AddCoverImage(r io.Reader) error {
@@ -284,7 +295,7 @@ func (w *book) AddCoverImage(r io.Reader) error {
 	if err != nil {
 		return err
 	}
-	err = w.CloseFile()
+	err = w.closeFile()
 	if err != nil {
 		return err
 	}
@@ -343,7 +354,7 @@ func (w *book) closeSections(level int) error {
 		if err != nil {
 			return err
 		}
-		err = w.CloseFile()
+		err = w.closeFile()
 		if err != nil {
 			return err
 		}
@@ -369,6 +380,7 @@ func (w *book) AddSection(level int, title string, secID string) error {
 		name := fmt.Sprintf("ch%s", w.SectionNumber)
 		file := w.RegisterFile(name, "application/xhtml+xml", true)
 
+		log.Println(file.Path)
 		err := w.createFile(w.driver.MakePath(file.Path))
 		if err != nil {
 			return err

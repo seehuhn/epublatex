@@ -2,19 +2,20 @@ TODO
 ====
 
 * correct scaling for tikz pictures
-* change maths parsing to use 'collectEnv'
-* should more infrastructure be shared between maths rendering and tikz rendering?
-* start the image renderers on demand
 * support \parskip and \parindent
 * add a way to set the document ID (tex comment? default to title?
   directory name?)
-* in pass 1, add line/column information to tokens for better error messages
 * in xhtml mode, add an "index.xhtml" file as the entry point
-
 * handle text before the first chapter/section
+* add beamer class support?
+
+* in pass 1, add line/column information to tokens for better error messages
+* start the image renderers on demand
+
+* change maths parsing to use 'collectEnv'
+* should more infrastructure be shared between maths rendering and
+  tikz rendering?
 * should encoding/xml be used to generate META-INF/container.xml and
   OEBPS/content.opf?
 * use some prefix (epub? latex?) for all auto-generated CSS?
-* add beamer class support?
-
 * test the scanner/parser using github.com/dvyukov/go-fuzz

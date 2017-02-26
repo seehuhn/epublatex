@@ -1,4 +1,4 @@
-// render.go -
+// render.go - rendering of mathematical formulas
 // Copyright (C) 2016  Jochen Voss <voss@seehuhn.de>
 //
 // This program is free software: you can redistribute it and/or modify
@@ -74,7 +74,7 @@ func NewRenderer(out chan<- *render.BookImage) (*Renderer, error) {
 	}
 	r.cache = cache
 
-	tmpl, err := template.New("tex").Parse(texTemplate)
+	tmpl, err := template.New("maths").Parse(texTemplate)
 	if err != nil {
 		return nil, err
 	}
@@ -88,9 +88,7 @@ func (r *Renderer) Finish() error {
 		r.runBatch()
 	}
 	r.children.Wait()
-
 	err := r.queue.Finish()
-
 	e2 := r.cache.Close(mathCachePruneLimit)
 	if err == nil {
 		err = e2
@@ -167,7 +165,7 @@ func (r *Renderer) runBatch() {
 		r.children.Done()
 
 		for range in {
-			log.Println("error: unexpected image received from renderer")
+			log.Println("error: received unexpected image from renderer")
 		}
 	}()
 }

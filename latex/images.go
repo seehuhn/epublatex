@@ -77,7 +77,7 @@ func (conv *converter) imageAdder(in <-chan *render.BookImage, res chan<- error)
 			firstError = firstOf(firstError, err)
 			continue
 		}
-		err = conv.Book.CloseFile()
+		err = w.Close()
 		if err != nil {
 			firstError = firstOf(firstError, err)
 			continue

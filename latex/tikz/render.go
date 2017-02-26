@@ -1,3 +1,19 @@
+// render.go - rendering of TikZ images
+// Copyright (C) 2016  Jochen Voss <voss@seehuhn.de>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package tikz
 
 import (
@@ -18,7 +34,9 @@ var noCache = flag.Bool("latex-tikz-no-cache", false,
 	"whether to disable the TikZ rendering cache")
 
 const (
-	renderRes = 150 // render resolution [pixels / inch]
+	renderRes = 300     // render resolution [pixels / inch]
+	exHeight  = 4.30554 // x-height of cmi10 [TeX pt / ex]
+	exPerPix  = 72.27 / exHeight / float64(renderRes)
 
 	tikzCachePruneLimit = 256 * 1024
 )
@@ -64,10 +82,6 @@ func NewRenderer(out chan<- *render.BookImage) (*Renderer, error) {
 	return r, nil
 }
 
-func (r *Renderer) AddPreamble(line string) {
-	r.preamble = append(r.preamble, line)
-}
-
 func (r *Renderer) Finish() error {
 	r.children.Wait()
 	err := r.queue.Finish()
@@ -77,6 +91,10 @@ func (r *Renderer) Finish() error {
 	}
 
 	return err
+}
+
+func (r *Renderer) AddPreamble(line string) {
+	r.preamble = append(r.preamble, line)
 }
 
 func (r *Renderer) AddPicture(picture string) {
@@ -133,13 +151,15 @@ func (r *Renderer) submit(info *pictureInfo, img image.Image) {
 		// user-supplied alt string?
 		alt = info.picture
 	}
+	exWidth := float64(img.Bounds().Dx()) * exPerPix
+	style := fmt.Sprintf("width: %.2fex", exWidth)
 	job := &render.BookImage{
 		Env:  "tikzpicture",
 		Body: info.picture,
 
 		Alt:      alt,
 		CssClass: "tikzpicture",
-		Style:    "", // TODO(voss): what to do here?
+		Style:    style,
 
 		Image: img,
 		Type:  render.BookImageTypePNG,
@@ -150,7 +170,7 @@ func (r *Renderer) submit(info *pictureInfo, img image.Image) {
 func (r *Renderer) makeKey(picture string) string {
 	// TODO(voss): should the preamble affect the key?
 	hash := sha3.Sum224([]byte(picture))
-	return fmt.Sprintf("tikz:%d:%x", renderRes, hash)
+	return fmt.Sprintf("tikz:%d:%f:%x", renderRes, exHeight, hash)
 }
 
 type pictureInfo struct {
