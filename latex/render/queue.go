@@ -65,7 +65,6 @@ func NewQueue(resolution int) (*Queue, error) {
 		}
 	}
 	q.workDir = workDir
-	log.Println("rendering in", q.workDir)
 
 	go q.scheduler()
 
@@ -81,7 +80,6 @@ func (q *Queue) Finish() error {
 
 	q.jobs = nil
 	if !q.keepFiles {
-		log.Println("removing", q.workDir)
 		err := os.RemoveAll(q.workDir)
 		if err != nil {
 			return err

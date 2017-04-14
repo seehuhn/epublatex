@@ -135,6 +135,13 @@ func parseDocumentclass(p *Tokenizer, name string) (TokenList, error) {
 		p.macros["\\section"] = letMacro("\\epubsection")
 		p.macros["\\subsection"] = letMacro("\\epubsubsection")
 		p.macros["\\title"] = letMacro("\\epubtitle")
+	case "jvbook":
+		p.macros["\\author"] = letMacro("\\epubauthor")
+		p.macros["\\chapter"] = letMacro("\\epubsection")
+		p.macros["\\maketitle"] = letMacro("\\epubmaketitle")
+		p.macros["\\section"] = letMacro("\\epubsubsection")
+		p.macros["\\subsection"] = letMacro("\\epubsubsubsection")
+		p.macros["\\title"] = letMacro("\\epubtitle")
 	default:
 		log.Println("unknown document class", class)
 	}
