@@ -30,7 +30,7 @@ const outputLineWidth = 79
 const cssPrefix = "latex-"
 
 type writer struct {
-	out     epub.Writer
+	out     *epub.Book
 	baseDir string
 
 	word       []byte
@@ -40,7 +40,7 @@ type writer struct {
 	nextParTag string
 }
 
-func newWriter(out epub.Writer, baseDir string) *writer {
+func newWriter(out *epub.Book, baseDir string) *writer {
 	return &writer{
 		out:     out,
 		baseDir: baseDir,

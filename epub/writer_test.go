@@ -21,7 +21,7 @@ func TestWriterSimple(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = w.Flush()
+	err = w.Close()
 	if err != nil {
 		t.Fatal(err)
 	}

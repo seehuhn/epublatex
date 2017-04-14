@@ -25,7 +25,7 @@ import (
 )
 
 type converter struct {
-	Book epub.Writer
+	Book *epub.Book
 
 	SourceDir     string
 	WorkDir       string
@@ -45,7 +45,7 @@ type converter struct {
 	Title, Author string
 }
 
-func newConverter(book epub.Writer) (*converter, error) {
+func newConverter(book *epub.Book) (*converter, error) {
 	workDir, err := ioutil.TempDir("", "jvepla")
 	if err != nil {
 		return nil, err
@@ -70,7 +70,7 @@ func (conv *converter) Close() error {
 
 // Convert read the given LaTeX input file, converts the contents to
 // EPUB format and writes the result to `book`.
-func Convert(book epub.Writer, inputFileName string) (err error) {
+func Convert(book *epub.Book, inputFileName string) (err error) {
 	conv, err := newConverter(book)
 	if err != nil {
 		return err

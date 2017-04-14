@@ -51,7 +51,7 @@ func main() {
 
 	BookID := "my second ebook (test)"
 
-	var book epub.Writer
+	var book *epub.Book
 	var err error
 	if *html {
 		book, err = epub.NewXhtmlWriter(outputName, BookID)
@@ -67,7 +67,7 @@ func main() {
 		}
 	}
 	defer func() {
-		err := book.Flush()
+		err := book.Close()
 		if err != nil {
 			log.Fatal(err)
 		}

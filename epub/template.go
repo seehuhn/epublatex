@@ -1,4 +1,5 @@
-// template.go -
+// template.go - manage the html templates used to generate epub/xhtml files
+//
 // Copyright (C) 2016  Jochen Voss <voss@seehuhn.de>
 //
 // This program is free software: you can redistribute it and/or modify
@@ -75,7 +76,7 @@ func loadTemplates(names []string) (*template.Template, error) {
 	return res, nil
 }
 
-func (w *book) writeTemplates(tmplFiles []string, data interface{}) error {
+func (w *Book) writeTemplates(tmplFiles []string, data interface{}) error {
 	tmpl, err := loadTemplates(tmplFiles)
 	if err != nil {
 		return err
@@ -86,7 +87,7 @@ func (w *book) writeTemplates(tmplFiles []string, data interface{}) error {
 	})
 }
 
-func (w *book) addFileFromTemplate(path string, tmplFiles []string,
+func (w *Book) addFileFromTemplate(path string, tmplFiles []string,
 	data interface{}) error {
 	err := w.createFile(path)
 	if err != nil {

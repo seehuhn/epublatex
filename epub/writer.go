@@ -1,4 +1,5 @@
 // writer.go -
+//
 // Copyright (C) 2016  Jochen Voss <voss@seehuhn.de>
 //
 // This program is free software: you can redistribute it and/or modify
@@ -55,19 +56,7 @@ type File struct {
 	Path      string
 }
 
-type Writer interface {
-	AddCoverImage(r io.Reader) error
-	AddTitle(title string, authors []string) error
-	AddSection(level int, title string, secID string) error
-
-	RegisterFile(baseName, mimeType string, inSpine bool) *File
-	CreateFile(file *File) (io.WriteCloser, error)
-	WriteString(s string) error
-
-	Flush() error
-}
-
-type book struct {
+type Book struct {
 	UUID         uuid.UUID
 	LastModified string
 	Language     string
@@ -96,7 +85,7 @@ type book struct {
 }
 
 func NewEpubWriter(out io.Writer, identifier string) (
-	Writer, error) {
+	*Book, error) {
 	zipFile := zip.NewWriter(out)
 	zipFile.RegisterCompressor(zip.Deflate,
 		func(out io.Writer) (io.WriteCloser, error) {
@@ -125,7 +114,7 @@ func NewEpubWriter(out io.Writer, identifier string) (
 }
 
 func NewXhtmlWriter(baseDir string, identifier string) (
-	Writer, error) {
+	*Book, error) {
 	driver := &xhtmlDriver{
 		BaseDir: baseDir,
 	}
@@ -133,10 +122,10 @@ func NewXhtmlWriter(baseDir string, identifier string) (
 }
 
 func newWriter(driver driver, identifier string) (
-	Writer, error) {
+	*Book, error) {
 	nameSpace := uuid.NewSHA1(uuid.NameSpaceURL, []byte(baseNameSpaceURL))
 
-	w := &book{
+	w := &Book{
 		UUID:         uuid.NewSHA1(nameSpace, []byte(identifier)),
 		LastModified: time.Now().UTC().Format(time.RFC3339),
 		Language:     "en-GB",
@@ -155,7 +144,7 @@ func newWriter(driver driver, identifier string) (
 	return w, nil
 }
 
-func (w *book) Flush() error {
+func (w *Book) Close() error {
 	if !w.open {
 		return nil
 	}
@@ -190,7 +179,7 @@ func (w *book) Flush() error {
 	return w.driver.Close(w)
 }
 
-func (w *book) RegisterFile(baseName, mimeType string, inSpine bool) *File {
+func (w *Book) RegisterFile(baseName, mimeType string, inSpine bool) *File {
 	file := &File{
 		ID:        "f" + strconv.Itoa(w.nextID),
 		MediaType: mimeType,
@@ -223,13 +212,13 @@ func (w *book) RegisterFile(baseName, mimeType string, inSpine bool) *File {
 	return file
 }
 
-func (w *book) closeFile() error {
+func (w *Book) closeFile() error {
 	err := w.current.Close()
 	w.current = nil
 	return err
 }
 
-func (w *book) createFile(path string) error {
+func (w *Book) createFile(path string) error {
 	if w.current != nil {
 		log.Println("Warning: file not closed")
 		err := w.closeFile()
@@ -245,17 +234,17 @@ func (w *book) createFile(path string) error {
 	return nil
 }
 
-type epubFileCloser book
+type epubFileCloser Book
 
 func (w *epubFileCloser) Write(p []byte) (n int, err error) {
 	return w.current.Write(p)
 }
 
 func (w *epubFileCloser) Close() error {
-	return (*book)(w).closeFile()
+	return (*Book)(w).closeFile()
 }
 
-func (w *book) CreateFile(file *File) (io.WriteCloser, error) {
+func (w *Book) CreateFile(file *File) (io.WriteCloser, error) {
 	if !w.open {
 		return nil, ErrBookClosed
 	}
@@ -271,7 +260,7 @@ func (w *book) CreateFile(file *File) (io.WriteCloser, error) {
 	return (*epubFileCloser)(w), nil
 }
 
-func (w *book) AddCoverImage(r io.Reader) error {
+func (w *Book) AddCoverImage(r io.Reader) error {
 	if !w.open {
 		return ErrBookClosed
 	}
@@ -315,7 +304,7 @@ func (w *book) AddCoverImage(r io.Reader) error {
 	return nil
 }
 
-func (w *book) AddTitle(title string, authors []string) error {
+func (w *Book) AddTitle(title string, authors []string) error {
 	if !w.open {
 		return ErrBookClosed
 	}
@@ -332,7 +321,7 @@ func (w *book) AddTitle(title string, authors []string) error {
 	return nil
 }
 
-func (w *book) closeSections(level int) error {
+func (w *Book) closeSections(level int) error {
 	if w.SectionLevel <= level {
 		return nil
 	}
@@ -362,7 +351,7 @@ func (w *book) closeSections(level int) error {
 	return nil
 }
 
-func (w *book) AddSection(level int, title string, secID string) error {
+func (w *Book) AddSection(level int, title string, secID string) error {
 	if !w.open {
 		return ErrBookClosed
 	}
@@ -432,7 +421,7 @@ func (w *book) AddSection(level int, title string, secID string) error {
 		})
 }
 
-func (w *book) WriteString(s string) error {
+func (w *Book) WriteString(s string) error {
 	if !w.open {
 		return ErrBookClosed
 	}
@@ -443,7 +432,7 @@ func (w *book) WriteString(s string) error {
 	return err
 }
 
-func (w *book) uniqueName(name, ext string) string {
+func (w *Book) uniqueName(name, ext string) string {
 	tryName := name + ext
 	unique := 2
 	for {

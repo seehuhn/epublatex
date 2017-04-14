@@ -1,4 +1,5 @@
-// section.go -
+// section.go - handle section numbers
+//
 // Copyright (C) 2016  Jochen Voss <voss@seehuhn.de>
 //
 // This program is free software: you can redistribute it and/or modify
@@ -21,8 +22,11 @@ import (
 	"strings"
 )
 
+// SecNo represents a section number in a document, e.g. `SecNo{1, 2}`
+// represents section 1.2 and `SecNo{1}` represents chapter 1.
 type SecNo []int
 
+// String formats a section number as a string, in the form "1.2.3".
 func (s SecNo) String() string {
 	var parts []string
 	for _, k := range s {
@@ -31,6 +35,9 @@ func (s SecNo) String() string {
 	return strings.Join(parts, ".")
 }
 
+// Inc increases the section number at a given level by 1.  Level
+// should be 1 to increase the chapter number, 2 to increase the
+// section number etc.
 func (s *SecNo) Inc(level int) {
 	if len(*s) > level {
 		*s = (*s)[:level]
