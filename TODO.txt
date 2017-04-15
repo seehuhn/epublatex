@@ -6,8 +6,8 @@ TODO
 * add a way to set the document ID (tex comment? default to title?
   directory name?)
 * in xhtml mode, add an "index.xhtml" file as the entry point
-* handle text before the first chapter/section
 * add beamer class support?
+* fix cross-file cross-references
 
 * in pass 1, add line/column information to tokens for better error messages
 * start the image renderers on demand

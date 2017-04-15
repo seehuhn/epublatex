@@ -44,7 +44,6 @@ const (
 
 var (
 	ErrBookClosed        = errors.New("attempt to write in a closed book")
-	ErrNoSection         = errors.New("attempt to write outside any section")
 	ErrNoTitle           = errors.New("document title not set")
 	ErrWrongSectionLevel = errors.New("wrong section level")
 	ErrWrongFileType     = errors.New("wrong file type")
@@ -327,18 +326,24 @@ func (w *Book) closeSections(level int) error {
 	}
 
 	for w.SectionLevel > level {
-		err := w.writeTemplates(
-			[]string{"section-tail.xhtml", w.driver.Config()},
-			nil)
-		if err != nil {
-			return err
+		if w.SectionNumber[0] > 0 {
+			err := w.writeTemplates(
+				[]string{"section-tail.xhtml", w.driver.Config()},
+				nil)
+			if err != nil {
+				return err
+			}
 		}
 		w.SectionLevel--
 	}
 
 	if w.SectionLevel <= 0 {
+		tailName := "chapter-tail.xhtml"
+		if w.SectionNumber[0] == 0 {
+			tailName = "front-tail.xhtml"
+		}
 		err := w.writeTemplates(
-			[]string{"chapter-tail.xhtml", w.driver.Config()},
+			[]string{tailName, w.driver.Config()},
 			nil)
 		if err != nil {
 			return err
@@ -369,7 +374,7 @@ func (w *Book) AddSection(level int, title string, secID string) error {
 		name := fmt.Sprintf("ch%s", w.SectionNumber)
 		file := w.RegisterFile(name, "application/xhtml+xml", true)
 
-		log.Println(file.Path)
+		log.Println("writing", file.Path, "...")
 		err := w.createFile(w.driver.MakePath(file.Path))
 		if err != nil {
 			return err
@@ -426,7 +431,25 @@ func (w *Book) WriteString(s string) error {
 		return ErrBookClosed
 	}
 	if w.current == nil {
-		return ErrNoSection
+		if w.SectionLevel > 0 {
+			panic("unexpected front matter")
+		}
+		w.SectionLevel = 1
+		w.SectionNumber = SecNo{0}
+
+		name := "front"
+		file := w.RegisterFile(name, "application/xhtml+xml", true)
+		log.Println("writing", file.Path, "...")
+		err := w.createFile(w.driver.MakePath(file.Path))
+		if err != nil {
+			return err
+		}
+		w.currentPath = file.Path
+		err = w.writeTemplates(
+			[]string{"front-head.xhtml", w.driver.Config()}, nil)
+		if err != nil {
+			return err
+		}
 	}
 	_, err := w.current.Write([]byte(s))
 	return err
