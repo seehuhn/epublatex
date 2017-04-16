@@ -1,5 +1,6 @@
-// pass2.go -
-// Copyright (C) 2016  Jochen Voss <voss@seehuhn.de>
+// pass2.go - generate output
+//
+// Copyright (C) 2016, 2017  Jochen Voss <voss@seehuhn.de>
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -237,6 +238,16 @@ func (conv *converter) Pass2() (err error) {
 						return err
 					}
 				}
+			case "\\bf":
+				if !w.state.isBold {
+					w.WriteString("<b>")
+					w.state.isBold = true
+				}
+			case "\\it":
+				if !w.state.isItalic {
+					w.WriteString("<i>")
+					w.state.isItalic = true
+				}
 
 			default:
 				// TODO(voss): add a more general mechanism to select
@@ -254,6 +265,28 @@ func (conv *converter) Pass2() (err error) {
 			}
 		case token.Type == tokenizer.TokenWord:
 			w.WriteString(token.Name)
+		case token.Type == tokenizer.TokenOther && token.Name == "{":
+			stateCopy := *w.state
+			w.stack = append(w.stack, &stateCopy)
+		case token.Type == tokenizer.TokenOther && token.Name == "}":
+			oldState := w.state
+			n := len(w.stack)
+			w.state, w.stack = w.stack[n-1], w.stack[:n-1]
+			// TODO(voss): avoid <b><i></b></i>
+			if w.state.isBold != oldState.isBold {
+				if w.state.isBold {
+					w.WriteString("<b>")
+				} else {
+					w.WriteString("</b>")
+				}
+			}
+			if w.state.isItalic != oldState.isItalic {
+				if w.state.isItalic {
+					w.WriteString("<i>")
+				} else {
+					w.WriteString("</i>")
+				}
+			}
 		case token.Type == tokenizer.TokenOther:
 			w.WriteString(conv.convertHTML(tokenizer.TokenList{token}))
 

@@ -1,5 +1,6 @@
-// macros.go -
-// Copyright (C) 2016  Jochen Voss <voss@seehuhn.de>
+// macros.go - correct parsing of LaTeX macros
+//
+// Copyright (C) 2016, 2017  Jochen Voss <voss@seehuhn.de>
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -63,6 +64,7 @@ func (p *Tokenizer) addBuiltinMacros() {
 	p.macros["\\alpha"] = typedMacro("")
 	p.macros["\\approx"] = typedMacro("")
 	p.macros["\\beta"] = typedMacro("")
+	p.macros["\\bf"] = typedMacro("")
 	p.macros["\\bigl"] = typedMacro("")
 	p.macros["\\bigm"] = typedMacro("")
 	p.macros["\\bigr"] = typedMacro("")
@@ -81,6 +83,7 @@ func (p *Tokenizer) addBuiltinMacros() {
 	p.macros["\\infty"] = typedMacro("")
 	p.macros["\\int"] = typedMacro("")
 	p.macros["\\iota"] = typedMacro("")
+	p.macros["\\it"] = typedMacro("")
 	p.macros["\\kappa"] = typedMacro("")
 	p.macros["\\label"] = typedMacro("V")
 	p.macros["\\lambda"] = typedMacro("")

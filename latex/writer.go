@@ -1,5 +1,6 @@
-// writer.go -
-// Copyright (C) 2016  Jochen Voss <voss@seehuhn.de>
+// writer.go - write generated HTML to the output document
+//
+// Copyright (C) 2016, 2017  Jochen Voss <voss@seehuhn.de>
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -37,6 +38,9 @@ type writer struct {
 	line       []string
 	lineLength int
 
+	state *State
+	stack []*State
+
 	nextParTag string
 }
 
@@ -44,6 +48,7 @@ func newWriter(out *epub.Book, baseDir string) *writer {
 	return &writer{
 		out:     out,
 		baseDir: baseDir,
+		state:   &State{},
 	}
 }
 
@@ -134,11 +139,18 @@ func (w *writer) endWord(endPar bool) error {
 		word = "<span class=\"" + cssPrefix + "nw\">" + word + "</span>"
 	}
 	if endPar {
+		endTag := "</p>"
+		if w.state.isBold {
+			endTag = "</b>" + endTag
+		}
+		if w.state.isItalic {
+			endTag = "</i>" + endTag
+		}
 		if word != "" {
-			word = word + "</p>"
+			word = word + endTag
 		} else if len(w.line) > 0 {
 			k := len(w.line) - 1
-			w.line[k] = w.line[k] + "</p>"
+			w.line[k] = w.line[k] + endTag
 			w.lineLength += 4
 		}
 	}
@@ -151,6 +163,12 @@ func (w *writer) endWord(endPar bool) error {
 		tag := "<p>"
 		if w.nextParTag != "" {
 			tag = `<p class="` + w.nextParTag + `">`
+		}
+		if w.state.isItalic {
+			tag = tag + "<i>"
+		}
+		if w.state.isBold {
+			tag = tag + "<b>"
 		}
 		w.line = []string{tag + word}
 		w.lineLength = len(tag) + l
