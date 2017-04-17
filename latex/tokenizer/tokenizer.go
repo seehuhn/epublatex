@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"io"
 	"log"
+	"strings"
 
 	"github.com/seehuhn/epublatex/latex/scanner"
 )
@@ -115,6 +116,18 @@ func (p *Tokenizer) ParseTex(res chan<- *Token) error {
 					nextBatch = TokenList{
 						&Token{Type: TokenMacro, Name: name, Args: args},
 					}
+				}
+			} else if name == "\\include" {
+				fileName, err := p.readMandatoryArg()
+				if err != nil {
+					return err
+				}
+				if !strings.HasSuffix(fileName, ".tex") {
+					fileName = fileName + ".tex"
+				}
+				err = p.Include(fileName)
+				if err != nil {
+					return err
 				}
 			} else {
 				log.Println("unknown macro", name)
