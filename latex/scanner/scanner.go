@@ -165,7 +165,7 @@ func (scan *Scanner) Peek() ([]byte, error) {
 	return nil, scan.MakeError(scan.sources[idx].err.Error())
 }
 
-// Skip advances the current position in the scanner inputs by n
+// Skip advances the current position in the scanner input stream by n
 // bytes.
 func (scan *Scanner) Skip(n int) {
 	if n < 0 {
@@ -233,7 +233,7 @@ type stackFrame struct {
 	Context string
 }
 
-// ParseError is used to indicate the reason of location of parse
+// ParseError is used to indicate the reason and location of parse
 // errors.
 type ParseError struct {
 	Message string

@@ -1,6 +1,9 @@
 TODO
 ====
 
+* In the tokenizer in latex/token, add a stack of macros/environments
+  and implement the difference between \def and \gdef.
+
 * correct scaling for tikz pictures
 * support \parskip and \parindent
 * add a way to set the document ID (tex comment? default to title?
@@ -12,6 +15,8 @@ TODO
 * in pass 1, add line/column information to tokens for better error messages
 * start the image renderers on demand
 
+* Change the tokenizer in latex/token so that it is possible to
+  recover the original text.
 * change maths parsing to use 'collectEnv'
 * should more infrastructure be shared between maths rendering and
   tikz rendering?

@@ -78,16 +78,6 @@ func (tok *Token) String() string {
 	return fmt.Sprintf("%s('%s')", tokType, tok.Name)
 }
 
-// Arg specifies a single macro argument.
-type Arg struct {
-	Optional bool
-	Value    TokenList
-}
-
-func (arg *Arg) String() string {
-	return arg.Value.FormatText()
-}
-
 func verbatim(s string) *Token {
 	return &Token{
 		Type: TokenVerbatim,
@@ -184,4 +174,14 @@ func (toks TokenList) FormatMaths() string {
 		}
 	}
 	return strings.Join(res, "")
+}
+
+// Arg specifies a single macro argument.
+type Arg struct {
+	Optional bool
+	Value    TokenList
+}
+
+func (arg *Arg) String() string {
+	return arg.Value.FormatText()
 }
